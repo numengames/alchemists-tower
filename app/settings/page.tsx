@@ -1,181 +1,181 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { Moon, Sun, Smartphone, User, Copy, Eye, EyeOff, Shield, Mail } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
+import { useState, useEffect } from 'react';
+import { Moon, Sun, Smartphone, User, Copy, Eye, EyeOff, Lock } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Sidebar } from '@/components/sidebar';
+import { TopBar } from '@/components/top-bar';
+import { LogoutModal } from '@/components/logout-modal';
 
 export default function SettingsPage() {
-  const [mounted, setMounted] = useState(false)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark')
-  const [nickname, setNickname] = useState('Admin User')
-  const [isEditingNickname, setIsEditingNickname] = useState(false)
-  const [isTwoFAEnabled, setIsTwoFAEnabled] = useState(false)
-  const [showSecret, setShowSecret] = useState(false)
-  const [verificationCode, setVerificationCode] = useState('')
-  const [secret, setSecret] = useState('JBSWY3DPEBLW64TMMQ======')
-  const router = useRouter()
+  const [isMounted, setIsMounted] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [nickname, setNickname] = useState('Admin User');
+  const [isEditingNickname, setIsEditingNickname] = useState(false);
+  const [isTwoFAEnabled, setIsTwoFAEnabled] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [secret, setSecret] = useState('JBSWY3DPEBLW64TMMQ======');
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
-    setMounted(true)
-    const loggedIn = localStorage.getItem('isLoggedIn') === 'true'
-    if (!loggedIn) {
-      router.replace('/login')
-    } else {
-      setIsLoggedIn(true)
-    }
-
-    // Load theme from localStorage
-    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null
-    if (savedTheme) {
-      setTheme(savedTheme)
-      document.documentElement.classList.toggle('dark', savedTheme === 'dark')
-    }
-  }, [router])
-
-  if (!mounted || !isLoggedIn) {
-    return null
-  }
+    setIsMounted(true);
+    const currentTheme = document.documentElement.classList.contains('light') ? 'light' : 'dark';
+    setTheme(currentTheme);
+  }, []);
 
   const handleThemeChange = (newTheme: 'light' | 'dark') => {
-    setTheme(newTheme)
-    localStorage.setItem('theme', newTheme)
+    setTheme(newTheme);
     if (newTheme === 'dark') {
-      document.documentElement.classList.add('dark')
-      document.documentElement.classList.remove('light')
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
     } else {
-      document.documentElement.classList.add('light')
-      document.documentElement.classList.remove('dark')
+      document.documentElement.classList.add('light');
+      document.documentElement.classList.remove('dark');
     }
-  }
+    window.dispatchEvent(new Event('storage'));
+  };
 
   const handleNicknameSave = () => {
-    setIsEditingNickname(false)
-    // TODO: Save to API
-  }
+    setIsEditingNickname(false);
+  };
 
   const handleEnable2FA = () => {
     if (verificationCode.length === 6) {
-      setIsTwoFAEnabled(true)
-      setVerificationCode('')
-      // TODO: Save to API
+      setIsTwoFAEnabled(true);
+      setVerificationCode('');
     }
-  }
+  };
 
   const handleDisable2FA = () => {
-    setIsTwoFAEnabled(false)
-    // TODO: Save to API
+    setIsTwoFAEnabled(false);
+  };
+
+  const handleLogoutConfirm = () => {
+    setIsLogoutModalOpen(false);
+    localStorage.removeItem('auth_token');
+    window.location.href = '/login';
+  };
+
+  const handlePasswordChange = () => {
+    if (newPassword !== confirmPassword) {
+      alert('Passwords do not match');
+      return;
+    }
+    if (newPassword.length < 8) {
+      alert('Password must be at least 8 characters');
+      return;
+    }
+    // Password change logic here
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    alert('Password changed successfully');
+  };
+
+  if (!isMounted) {
+    return null;
   }
 
   return (
-    <div className="flex-1 overflow-auto p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>
-          <p className="text-foreground/60">Manage your account, security, and preferences</p>
-        </div>
+    <div className="flex h-screen bg-background text-foreground overflow-hidden">
+      <Sidebar />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <TopBar onSignOut={() => setIsLogoutModalOpen(true)} />
 
-        <div className="space-y-6">
-          {/* Profile Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="w-5 h-5" />
-                Profile Information
-              </CardTitle>
-              <CardDescription>Update your personal details</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Nickname */}
-              <div className="space-y-2">
-                <Label htmlFor="nickname">Nickname</Label>
-                {isEditingNickname ? (
-                  <div className="flex gap-2">
-                    <Input
-                      id="nickname"
-                      type="text"
-                      value={nickname}
-                      onChange={(e) => setNickname(e.target.value)}
-                      className="flex-1"
-                      autoFocus
-                    />
-                    <Button onClick={handleNicknameSave}>Save</Button>
-                    <Button onClick={() => setIsEditingNickname(false)} variant="outline">
-                      Cancel
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between p-3 bg-sidebar rounded-lg border border-sidebar-border">
-                    <span className="text-foreground">{nickname}</span>
-                    <Button onClick={() => setIsEditingNickname(true)} variant="outline" size="sm">
-                      Edit
-                    </Button>
-                  </div>
-                )}
-              </div>
+        <div className="flex-1 overflow-auto">
+          <div className="p-6 md:p-8 space-y-8 max-w-4xl">
+            {/* Page Header */}
+            <div>
+              <h1 className="text-3xl md:text-4xl font-serif font-bold text-foreground mb-2">
+                Settings
+              </h1>
+              <p className="text-foreground/60">Manage your account, security, and preferences</p>
+            </div>
 
-              {/* Email (Read-only) */}
-              <div className="space-y-2">
-                <Label htmlFor="email" className="flex items-center gap-2">
-                  <Mail className="w-4 h-4" />
-                  Email Address
-                </Label>
-                <div className="p-3 bg-sidebar rounded-lg border border-sidebar-border text-foreground/60">
-                  admin@khepriforge.com
+            {/* Profile Section */}
+            <div className="bg-card border border-border rounded-xl p-6 md:p-8">
+              <h2 className="text-xl font-serif font-bold text-foreground mb-6 flex items-center gap-2">
+                <User className="w-5 h-5 text-primary" strokeWidth={1.5} />
+                Profile
+              </h2>
+
+              <div className="space-y-6">
+                {/* Nickname */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-3">Nickname</label>
+                  {isEditingNickname ? (
+                    <div className="flex gap-2 flex-col sm:flex-row">
+                      <Input
+                        type="text"
+                        value={nickname}
+                        onChange={(e) => setNickname(e.target.value)}
+                        className="flex-1 cursor-text"
+                        autoFocus
+                      />
+                      <Button
+                        onClick={handleNicknameSave}
+                        className="bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer whitespace-nowrap"
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        onClick={() => setIsEditingNickname(false)}
+                        variant="outline"
+                        className="cursor-pointer whitespace-nowrap"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between p-3 bg-sidebar rounded-lg border border-sidebar-border">
+                      <span className="text-foreground">{nickname}</span>
+                      <Button
+                        onClick={() => setIsEditingNickname(true)}
+                        variant="outline"
+                        size="sm"
+                        className="cursor-pointer"
+                      >
+                        Edit
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                <p className="text-xs text-muted-foreground">Email cannot be changed</p>
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Security */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="w-5 h-5" />
-                Security
-              </CardTitle>
-              <CardDescription>Manage your password</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="current-password">Current Password</Label>
-                <Input id="current-password" type="password" />
+                {/* Email (Read-only) */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-3">
+                    Email Address
+                  </label>
+                  <div className="p-3 bg-sidebar rounded-lg border border-sidebar-border text-foreground/60">
+                    admin@khepriforge.com
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-password">New Password</Label>
-                <Input id="new-password" type="password" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm New Password</Label>
-                <Input id="confirm-password" type="password" />
-              </div>
-              <Button>Update Password</Button>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Theme Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+            {/* Theme Section */}
+            <div className="bg-card border border-border rounded-xl p-6 md:p-8">
+              <h2 className="text-xl font-serif font-bold text-foreground mb-6 flex items-center gap-2">
                 {theme === 'dark' ? (
-                  <Moon className="w-5 h-5" />
+                  <Moon className="w-5 h-5 text-primary" strokeWidth={1.5} />
                 ) : (
-                  <Sun className="w-5 h-5" />
+                  <Sun className="w-5 h-5 text-primary" strokeWidth={1.5} />
                 )}
                 Theme
-              </CardTitle>
-              <CardDescription>Choose your preferred color scheme</CardDescription>
-            </CardHeader>
-            <CardContent>
+              </h2>
+
               <div className="grid grid-cols-2 gap-4">
                 <button
                   onClick={() => handleThemeChange('light')}
-                  className={`p-4 rounded-xl border-2 transition-all ${
+                  className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
                     theme === 'light'
                       ? 'border-primary bg-primary/10'
                       : 'border-border hover:border-border/50 bg-sidebar'
@@ -187,7 +187,7 @@ export default function SettingsPage() {
 
                 <button
                   onClick={() => handleThemeChange('dark')}
-                  className={`p-4 rounded-xl border-2 transition-all ${
+                  className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
                     theme === 'dark'
                       ? 'border-primary bg-primary/10'
                       : 'border-border hover:border-border/50 bg-sidebar'
@@ -197,19 +197,114 @@ export default function SettingsPage() {
                   <span className="text-sm font-medium text-foreground">Dark</span>
                 </button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* 2FA Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Smartphone className="w-5 h-5" />
+            {/* Change Password Section */}
+            <div className="bg-card border border-border rounded-xl p-6 md:p-8">
+              <h2 className="text-xl font-serif font-bold text-foreground mb-6 flex items-center gap-2">
+                <Lock className="w-5 h-5 text-primary" strokeWidth={1.5} />
+                Change Password
+              </h2>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    Current Password
+                  </label>
+                  <div className="relative">
+                    <Input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="w-full pr-10 cursor-text"
+                      placeholder="Enter current password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground/60 cursor-pointer"
+                    >
+                      {showCurrentPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <Input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full pr-10 cursor-text"
+                      placeholder="Enter new password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground/60 cursor-pointer"
+                    >
+                      {showNewPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    Confirm New Password
+                  </label>
+                  <div className="relative">
+                    <Input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full pr-10 cursor-text"
+                      placeholder="Confirm new password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground/60 cursor-pointer"
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={handlePasswordChange}
+                  disabled={!currentPassword || !newPassword || !confirmPassword}
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Update Password
+                </Button>
+              </div>
+            </div>
+
+            {/* 2FA Section */}
+            <div className="bg-card border border-border rounded-xl p-6 md:p-8">
+              <h2 className="text-xl font-serif font-bold text-foreground mb-2 flex items-center gap-2">
+                <Smartphone className="w-5 h-5 text-primary" strokeWidth={1.5} />
                 Two-Factor Authentication
-              </CardTitle>
-              <CardDescription>Add an extra layer of security to your account</CardDescription>
-            </CardHeader>
-            <CardContent>
+              </h2>
+              <p className="text-sm text-foreground/60 mb-6">
+                Add an extra layer of security to your account
+              </p>
+
               {!isTwoFAEnabled ? (
                 <div className="space-y-6">
                   <div className="bg-sidebar/50 border border-sidebar-border rounded-lg p-4 space-y-4">
@@ -220,7 +315,7 @@ export default function SettingsPage() {
 
                     {/* QR Code Placeholder */}
                     <div className="bg-white p-4 rounded-lg w-40 h-40 flex items-center justify-center mx-auto">
-                      <div className="text-center text-gray-400">
+                      <div className="text-center text-foreground/40">
                         <p className="text-xs">QR Code</p>
                         <p className="text-xs">(Placeholder)</p>
                       </div>
@@ -228,13 +323,13 @@ export default function SettingsPage() {
 
                     <div className="border-t border-sidebar-border pt-4 space-y-3">
                       <p className="text-sm text-foreground/80">Or enter this code manually:</p>
-                      <div className="flex items-center gap-2 bg-background p-3 rounded-lg border border-border">
-                        <code className="flex-1 text-sm font-mono text-foreground break-all">
+                      <div className="flex items-center gap-2 bg-background p-3 rounded-lg border border-border flex-wrap sm:flex-nowrap">
+                        <code className="flex-1 text-sm font-mono text-foreground break-all min-w-0">
                           {showSecret ? secret : '••••••••••••••••••••••••'}
                         </code>
                         <button
                           onClick={() => setShowSecret(!showSecret)}
-                          className="p-2 hover:bg-sidebar rounded-lg transition-colors"
+                          className="p-2 hover:bg-sidebar rounded-lg transition-colors cursor-pointer flex-shrink-0"
                           aria-label="Toggle secret visibility"
                         >
                           {showSecret ? (
@@ -245,7 +340,7 @@ export default function SettingsPage() {
                         </button>
                         <button
                           onClick={() => navigator.clipboard.writeText(secret)}
-                          className="p-2 hover:bg-sidebar rounded-lg transition-colors"
+                          className="p-2 hover:bg-sidebar rounded-lg transition-colors cursor-pointer flex-shrink-0"
                           aria-label="Copy secret"
                         >
                           <Copy className="w-4 h-4 text-foreground/60" />
@@ -255,12 +350,11 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="space-y-3">
-                    <Label htmlFor="verification-code">
+                    <label className="block text-sm font-medium text-foreground">
                       Enter the 6-digit code from your authenticator
-                    </Label>
-                    <div className="flex gap-2">
+                    </label>
+                    <div className="flex gap-2 flex-col sm:flex-row">
                       <Input
-                        id="verification-code"
                         type="text"
                         placeholder="000000"
                         value={verificationCode}
@@ -268,12 +362,12 @@ export default function SettingsPage() {
                           setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))
                         }
                         maxLength={6}
-                        className="flex-1 text-center text-lg tracking-widest"
+                        className="flex-1 cursor-text text-center text-lg tracking-widest"
                       />
                       <Button
                         onClick={handleEnable2FA}
                         disabled={verificationCode.length !== 6}
-                        className="whitespace-nowrap"
+                        className="bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                       >
                         Verify & Enable
                       </Button>
@@ -286,11 +380,11 @@ export default function SettingsPage() {
                   </p>
                 </div>
               ) : (
-                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4 space-y-4">
+                <div className="bg-primary/10 border border-primary/30 rounded-lg p-4 space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-semibold text-foreground flex items-center gap-2">
-                        <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
                         2FA is enabled
                       </p>
                       <p className="text-sm text-foreground/60">Your account is protected</p>
@@ -300,16 +394,22 @@ export default function SettingsPage() {
                   <Button
                     onClick={handleDisable2FA}
                     variant="outline"
-                    className="w-full border-destructive/50 text-destructive hover:bg-destructive/10"
+                    className="w-full border-destructive/50 text-destructive hover:bg-destructive/10 cursor-pointer bg-transparent"
                   >
                     Disable 2FA
                   </Button>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
+
+        <LogoutModal
+          isOpen={isLogoutModalOpen}
+          onConfirm={handleLogoutConfirm}
+          onCancel={() => setIsLogoutModalOpen(false)}
+        />
       </div>
     </div>
-  )
+  );
 }

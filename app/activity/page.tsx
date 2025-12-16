@@ -1,100 +1,188 @@
-"use client"
+'use client';
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { Calendar, User, Globe, Clock } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Sidebar } from '@/components/sidebar';
+import { TopBar } from '@/components/top-bar';
+import { LogoutModal } from '@/components/logout-modal';
+import { Card } from '@/components/ui/card';
+import {
+  CheckCircle,
+  AlertCircle,
+  Plus,
+  Edit,
+  Trash2,
+  Power,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+
+const activities = [
+  {
+    id: 1,
+    action: 'Created world',
+    world: 'Paradise Realm',
+    user: 'Admin User',
+    timestamp: '2 hours ago',
+    status: 'success',
+    icon: Plus,
+  },
+  {
+    id: 2,
+    action: 'Updated configuration',
+    world: 'Sacred Temple',
+    user: 'Admin User',
+    timestamp: '4 hours ago',
+    status: 'success',
+    icon: Edit,
+  },
+  {
+    id: 3,
+    action: 'Paused world',
+    world: 'Sleeping Giants',
+    user: 'System',
+    timestamp: '6 hours ago',
+    status: 'warning',
+    icon: Power,
+  },
+  {
+    id: 4,
+    action: 'Deleted world',
+    world: 'Old Archive',
+    user: 'Admin User',
+    timestamp: '1 day ago',
+    status: 'success',
+    icon: Trash2,
+  },
+];
+
+const ITEMS_PER_PAGE = 5;
 
 export default function ActivityPage() {
-  const [mounted, setMounted] = useState(false)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const router = useRouter()
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const router = useRouter();
 
   useEffect(() => {
-    setMounted(true)
-    const loggedIn = localStorage.getItem("isLoggedIn") === "true"
-    if (!loggedIn) {
-      router.replace("/login")
-    } else {
-      setIsLoggedIn(true)
+    setIsMounted(true);
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      router.push('/login');
     }
-  }, [router])
+  }, [router]);
 
-  if (!mounted || !isLoggedIn) {
-    return null
+  const handleLogoutConfirm = () => {
+    setIsLogoutModalOpen(false);
+    localStorage.removeItem('auth_token');
+    router.push('/login');
+  };
+
+  const totalPages = Math.ceil(activities.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const currentActivities = activities.slice(startIndex, endIndex);
+
+  if (!isMounted) {
+    return null;
   }
 
-  const activities = [
-    {
-      id: 1,
-      type: "world_created",
-      user: "Sera Nyx",
-      action: "created world",
-      target: "Alpha Genesis",
-      timestamp: "2 hours ago",
-    },
-    {
-      id: 2,
-      type: "world_updated",
-      user: "Kai Storm",
-      action: "updated world",
-      target: "Echo Chamber",
-      timestamp: "5 hours ago",
-    },
-    {
-      id: 3,
-      type: "world_paused",
-      user: "Luna Code",
-      action: "paused world",
-      target: "Void Realm",
-      timestamp: "1 day ago",
-    },
-  ]
-
   return (
-    <div className="flex-1 overflow-auto p-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Activity Log</h1>
-          <p className="text-foreground/60">Recent actions and events across all worlds</p>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="w-5 h-5" />
-              Recent Activity
-            </CardTitle>
-            <CardDescription>Track all changes and actions in your ecosystem</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {activities.map((activity) => (
-                <div
-                  key={activity.id}
-                  className="flex items-start gap-4 p-4 rounded-lg border border-border hover:bg-sidebar-accent/30 transition-colors"
-                >
-                  <div className="p-2 rounded-full bg-primary/10">
-                    <Globe className="w-4 h-4 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <User className="w-3 h-3 text-foreground/60" />
-                      <span className="font-medium text-foreground">{activity.user}</span>
-                      <span className="text-foreground/60">{activity.action}</span>
-                      <span className="font-medium text-primary">{activity.target}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-foreground/50">
-                      <Calendar className="w-3 h-3" />
-                      {activity.timestamp}
-                    </div>
-                  </div>
-                </div>
-              ))}
+    <div className="flex h-screen bg-background text-foreground overflow-hidden flex-col md:flex-row">
+      <Sidebar />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <TopBar onSignOut={() => setIsLogoutModalOpen(true)} />
+        <div className="flex-1 overflow-auto">
+          <div className="p-6 md:p-8 space-y-8 max-w-4xl">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-serif font-bold text-foreground mb-2">
+                Activity Log
+              </h1>
+              <p className="text-foreground/60">Track all changes and actions in your worlds</p>
             </div>
-          </CardContent>
-        </Card>
+
+            <div className="space-y-3">
+              {currentActivities.map((activity) => {
+                const Icon = activity.icon;
+                const isSuccess = activity.status === 'success';
+                return (
+                  <Card
+                    key={activity.id}
+                    className="p-4 bg-card border border-border rounded-xl hover:bg-card/80 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${
+                          isSuccess ? 'bg-primary/10' : 'bg-yellow-500/10'
+                        }`}
+                      >
+                        <Icon
+                          className={`w-4 h-4 ${isSuccess ? 'text-primary' : 'text-yellow-500'}`}
+                          strokeWidth={1.5}
+                        />
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-0.5 gap-1">
+                          <p className="text-foreground font-medium text-sm">{activity.action}</p>
+                          <p className="text-xs text-foreground/40 flex-shrink-0">
+                            {activity.timestamp}
+                          </p>
+                        </div>
+                        <p className="text-sm text-foreground/60 truncate">
+                          <span className="font-semibold">{activity.world}</span> by {activity.user}
+                        </p>
+                      </div>
+
+                      <div className="flex-shrink-0">
+                        {isSuccess ? (
+                          <CheckCircle className="w-4 h-4 text-green-500/60" strokeWidth={1.5} />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-yellow-500/60" strokeWidth={1.5} />
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Previous
+                </Button>
+                <span className="text-sm text-foreground/60">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="cursor-pointer"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+        <LogoutModal
+          isOpen={isLogoutModalOpen}
+          onConfirm={handleLogoutConfirm}
+          onCancel={() => setIsLogoutModalOpen(false)}
+        />
       </div>
     </div>
-  )
+  );
 }

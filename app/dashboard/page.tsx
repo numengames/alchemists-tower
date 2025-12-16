@@ -40,6 +40,7 @@ export default function DashboardPage() {
         <TopBar
           onCreateClick={() => setIsCreateModalOpen(true)}
           onSignOut={() => setIsLogoutModalOpen(true)}
+          showCreateButton={true}
         />
         <DashboardContent onCreateClick={() => setIsCreateModalOpen(true)} />
         <CreateWorldModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
