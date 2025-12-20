@@ -80,7 +80,6 @@ model User {
   // Relations
   owned_worlds            World[]
   audit_logs              AuditLog[]
-  sessions                Session[]
 
   @@map("users")
 }
@@ -146,19 +145,4 @@ model AuditLog {
     @@index([action])
     @@index([created_at])
     @@map("audit_logs")
-  }
-  
-  // ============================================
-  // SESSIONS
-  // ============================================
-  model Session {
-    id          String   @id @default(cuid())
-    user_id     String
-    user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-    token       String   @unique
-    expires_at  DateTime
-    created_at  DateTime @default(now())
-    
-    @@index([user_id])
-    @@map("sessions")
   }

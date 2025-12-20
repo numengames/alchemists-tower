@@ -1,87 +1,134 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { Moon, Sun, Smartphone, User, Copy, Eye, EyeOff, Lock } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Sidebar } from '@/components/sidebar';
-import { TopBar } from '@/components/top-bar';
-import { LogoutModal } from '@/components/logout-modal';
+import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { Moon, Sun, Smartphone, User, Copy, Eye, EyeOff, Lock, Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Sidebar } from '@/components/sidebar'
+import { TopBar } from '@/components/top-bar'
+import { LogoutModal } from '@/components/logout-modal'
+import { signOut } from 'next-auth/react'
 
 export default function SettingsPage() {
-  const [isMounted, setIsMounted] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
-  const [nickname, setNickname] = useState('Admin User');
-  const [isEditingNickname, setIsEditingNickname] = useState(false);
-  const [isTwoFAEnabled, setIsTwoFAEnabled] = useState(false);
-  const [showSecret, setShowSecret] = useState(false);
-  const [verificationCode, setVerificationCode] = useState('');
-  const [secret, setSecret] = useState('JBSWY3DPEBLW64TMMQ======');
-  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const { data: session, status } = useSession()
+  const router = useRouter()
+  const [isMounted, setIsMounted] = useState(false)
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark')
+  const [nickname, setNickname] = useState('')
+  const [tempNickname, setTempNickname] = useState('')
+  const [isEditingNickname, setIsEditingNickname] = useState(false)
+  const [isSavingNickname, setIsSavingNickname] = useState(false)
+  const [isTwoFAEnabled, setIsTwoFAEnabled] = useState(false)
+  const [showSecret, setShowSecret] = useState(false)
+  const [verificationCode, setVerificationCode] = useState('')
+  const [secret, setSecret] = useState('JBSWY3DPEBLW64TMMQ======')
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   useEffect(() => {
-    setIsMounted(true);
-    const currentTheme = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-    setTheme(currentTheme);
-  }, []);
+    setIsMounted(true)
+    const currentTheme = document.documentElement.classList.contains('light') ? 'light' : 'dark'
+    setTheme(currentTheme)
+  }, [])
+
+  useEffect(() => {
+    if (session?.user) {
+      setNickname(session.user.name || '')
+      setTempNickname(session.user.name || '')
+    }
+  }, [session])
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login')
+    }
+  }, [status, router])
 
   const handleThemeChange = (newTheme: 'light' | 'dark') => {
-    setTheme(newTheme);
+    setTheme(newTheme)
     if (newTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-      document.documentElement.classList.remove('light');
+      document.documentElement.classList.add('dark')
+      document.documentElement.classList.remove('light')
     } else {
-      document.documentElement.classList.add('light');
-      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light')
+      document.documentElement.classList.remove('dark')
     }
-    window.dispatchEvent(new Event('storage'));
-  };
+    window.dispatchEvent(new Event('storage'))
+  }
 
-  const handleNicknameSave = () => {
-    setIsEditingNickname(false);
-  };
+  const handleNicknameSave = async () => {
+    setIsSavingNickname(true)
+
+    try {
+      const response = await fetch('/api/user/update-name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: tempNickname }),
+      })
+
+      if (response.ok) {
+        setNickname(tempNickname)
+        setIsEditingNickname(false)
+        router.refresh()
+      } else {
+        alert('Failed to update nickname')
+      }
+    } catch (error) {
+      alert('An error occurred')
+    } finally {
+      setIsSavingNickname(false)
+    }
+  }
 
   const handleEnable2FA = () => {
     if (verificationCode.length === 6) {
-      setIsTwoFAEnabled(true);
-      setVerificationCode('');
+      setIsTwoFAEnabled(true)
+      setVerificationCode('')
     }
-  };
+  }
 
   const handleDisable2FA = () => {
-    setIsTwoFAEnabled(false);
-  };
+    setIsTwoFAEnabled(false)
+  }
 
-  const handleLogoutConfirm = () => {
-    setIsLogoutModalOpen(false);
-    localStorage.removeItem('auth_token');
-    window.location.href = '/login';
-  };
+  const handleLogoutConfirm = async () => {
+    setIsLogoutModalOpen(false)
+    await signOut({ callbackUrl: '/login' })
+  }
 
   const handlePasswordChange = () => {
     if (newPassword !== confirmPassword) {
-      alert('Passwords do not match');
-      return;
+      alert('Passwords do not match')
+      return
     }
     if (newPassword.length < 8) {
-      alert('Password must be at least 8 characters');
-      return;
+      alert('Password must be at least 8 characters')
+      return
     }
-    // Password change logic here
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    alert('Password changed successfully');
-  };
+    setCurrentPassword('')
+    setNewPassword('')
+    setConfirmPassword('')
+    alert('Password changed successfully')
+  }
 
-  if (!isMounted) {
-    return null;
+  if (!isMounted || status === 'loading') {
+    return (
+      <div className="flex h-screen bg-background items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  // Not authenticated
+  if (status === 'unauthenticated') {
+    return null
   }
 
   return (
@@ -115,33 +162,45 @@ export default function SettingsPage() {
                     <div className="flex gap-2 flex-col sm:flex-row">
                       <Input
                         type="text"
-                        value={nickname}
-                        onChange={(e) => setNickname(e.target.value)}
-                        className="flex-1 cursor-text"
+                        value={tempNickname}
+                        onChange={(e) => setTempNickname(e.target.value)}
+                        className="flex-1"
                         autoFocus
+                        disabled={isSavingNickname}
                       />
                       <Button
                         onClick={handleNicknameSave}
-                        className="bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer whitespace-nowrap"
+                        disabled={isSavingNickname || !tempNickname.trim()}
+                        className="bg-primary text-primary-foreground hover:bg-primary/90 whitespace-nowrap"
                       >
-                        Save
+                        {isSavingNickname ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          'Save'
+                        )}
                       </Button>
                       <Button
-                        onClick={() => setIsEditingNickname(false)}
+                        onClick={() => {
+                          setTempNickname(nickname)
+                          setIsEditingNickname(false)
+                        }}
                         variant="outline"
-                        className="cursor-pointer whitespace-nowrap"
+                        className="whitespace-nowrap"
+                        disabled={isSavingNickname}
                       >
                         Cancel
                       </Button>
                     </div>
                   ) : (
                     <div className="flex items-center justify-between p-3 bg-sidebar rounded-lg border border-sidebar-border">
-                      <span className="text-foreground">{nickname}</span>
+                      <span className="text-foreground">{nickname || 'No name set'}</span>
                       <Button
                         onClick={() => setIsEditingNickname(true)}
                         variant="outline"
                         size="sm"
-                        className="cursor-pointer"
                       >
                         Edit
                       </Button>
@@ -155,7 +214,7 @@ export default function SettingsPage() {
                     Email Address
                   </label>
                   <div className="p-3 bg-sidebar rounded-lg border border-sidebar-border text-foreground/60">
-                    admin@khepriforge.com
+                    {session?.user?.email || 'No email'}
                   </div>
                 </div>
               </div>
@@ -175,7 +234,7 @@ export default function SettingsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <button
                   onClick={() => handleThemeChange('light')}
-                  className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                  className={`p-4 rounded-xl border-2 transition-all ${
                     theme === 'light'
                       ? 'border-primary bg-primary/10'
                       : 'border-border hover:border-border/50 bg-sidebar'
@@ -187,7 +246,7 @@ export default function SettingsPage() {
 
                 <button
                   onClick={() => handleThemeChange('dark')}
-                  className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                  className={`p-4 rounded-xl border-2 transition-all ${
                     theme === 'dark'
                       ? 'border-primary bg-primary/10'
                       : 'border-border hover:border-border/50 bg-sidebar'
@@ -216,19 +275,15 @@ export default function SettingsPage() {
                       type={showCurrentPassword ? 'text' : 'password'}
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="w-full pr-10 cursor-text"
+                      className="w-full pr-10"
                       placeholder="Enter current password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground/60 cursor-pointer"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground/60"
                     >
-                      {showCurrentPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
+                      {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
@@ -242,19 +297,15 @@ export default function SettingsPage() {
                       type={showNewPassword ? 'text' : 'password'}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full pr-10 cursor-text"
+                      className="w-full pr-10"
                       placeholder="Enter new password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground/60 cursor-pointer"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground/60"
                     >
-                      {showNewPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
@@ -268,19 +319,15 @@ export default function SettingsPage() {
                       type={showConfirmPassword ? 'text' : 'password'}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full pr-10 cursor-text"
+                      className="w-full pr-10"
                       placeholder="Confirm new password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground/60 cursor-pointer"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground/60"
                     >
-                      {showConfirmPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
@@ -288,7 +335,7 @@ export default function SettingsPage() {
                 <Button
                   onClick={handlePasswordChange}
                   disabled={!currentPassword || !newPassword || !confirmPassword}
-                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
                 >
                   Update Password
                 </Button>
@@ -402,6 +449,7 @@ export default function SettingsPage() {
               )}
             </div>
           </div>
+          </div>
         </div>
 
         <LogoutModal
@@ -410,6 +458,5 @@ export default function SettingsPage() {
           onCancel={() => setIsLogoutModalOpen(false)}
         />
       </div>
-    </div>
-  );
+  )
 }

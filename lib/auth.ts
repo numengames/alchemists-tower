@@ -1,19 +1,40 @@
 import NextAuth from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
-import { PrismaAdapter } from '@auth/prisma-adapter'
+import { CredentialsSignin } from 'next-auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { checkRateLimit, recordFailedAttempt, resetLoginAttempts } from '@/lib/rate-limit'
 import { UserStatus } from '@/generated/prisma/enums'
 
+class CustomLoginError extends CredentialsSignin {
+  constructor(public code: string) {
+    super()
+    this.message = code
+  }
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: {
-    strategy: 'database',
-    maxAge: 30 * 24 * 60 * 60, // 30 días
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60,
   },
   pages: {
     signIn: '/login',
-    error: '/login',
+  },
+  logger: {
+    error: (error) => {
+      if (
+        error.message.includes('INVALID||') ||
+        error.message.includes('LOCKED||') ||
+        error.message.includes('SUSPENDED||')
+      ) {
+        console.error('[auth]', error.message.split('||')[1])
+      } else {
+        console.error('[auth]', error.message)
+      }
+    },
+    warn: () => {},
+    debug: () => {},
   },
   providers: [
     CredentialsProvider({
@@ -24,55 +45,100 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error('Missing credentials')
+          throw new CustomLoginError('INVALID||Please enter email and password')
         }
 
         const email = credentials.email as string
         const password = credentials.password as string
 
-        // 1. Verificar rate limit
         const rateLimit = await checkRateLimit(email)
-        
+
         if (!rateLimit.allowed) {
+          // Audit log: Rate limit exceeded
+          await prisma.auditLog.create({
+            data: {
+              action: 'LOGIN',
+              resource_type: 'SESSION',
+              user_email: email,
+              status: 'FAILURE',
+              error_message: `Rate limit exceeded: ${rateLimit.lockDuration}`,
+            },
+          })
+
           if (rateLimit.lockDuration === 'permanent') {
-            throw new Error('Account suspended. Contact administrator.')
+            throw new CustomLoginError('SUSPENDED||Account suspended. Contact administrator.')
           }
-          throw new Error(`Too many failed attempts. Try again in ${rateLimit.lockDuration}.`)
+          throw new CustomLoginError(
+            `LOCKED||Too many failed attempts. Try again in ${rateLimit.lockDuration}.`
+          )
         }
 
-        // 2. Buscar usuario
         const user = await prisma.user.findUnique({
           where: { email },
         })
 
         if (!user) {
           await recordFailedAttempt(email)
-          throw new Error('Invalid credentials')
+
+          // Audit log: User not found
+          await prisma.auditLog.create({
+            data: {
+              action: 'LOGIN',
+              resource_type: 'SESSION',
+              user_email: email,
+              status: 'FAILURE',
+              error_message: 'Invalid credentials (user not found)',
+            },
+          })
+
+          throw new CustomLoginError('INVALID||Invalid email or password')
         }
 
-        // 3. Verificar estado del usuario
         if (user.status === UserStatus.SUSPENDED) {
-          throw new Error('Account suspended. Contact administrator.')
+          // Audit log: Suspended user
+          await prisma.auditLog.create({
+            data: {
+              action: 'LOGIN',
+              resource_type: 'SESSION',
+              user_id: user.id,
+              user_email: user.email,
+              status: 'FAILURE',
+              error_message: 'Account suspended',
+            },
+          })
+
+          throw new CustomLoginError('SUSPENDED||Account suspended. Contact administrator.')
         }
 
-        // 4. Verificar password
         const isPasswordValid = await bcrypt.compare(password, user.password_hash)
 
         if (!isPasswordValid) {
           await recordFailedAttempt(email)
           const updatedLimit = await checkRateLimit(email)
-          
+
+          // Audit log: Invalid password
+          await prisma.auditLog.create({
+            data: {
+              action: 'LOGIN',
+              resource_type: 'SESSION',
+              user_id: user.id,
+              user_email: user.email,
+              status: 'FAILURE',
+              error_message: `Invalid password (${5 - updatedLimit.remainingAttempts}/5 attempts)`,
+            },
+          })
+
           if (updatedLimit.remainingAttempts === 0 && updatedLimit.lockDuration) {
-            throw new Error(`Invalid credentials. Account locked for ${updatedLimit.lockDuration}.`)
+            throw new CustomLoginError(`LOCKED||Account locked for ${updatedLimit.lockDuration}.`)
           }
-          
-          throw new Error(`Invalid credentials. ${updatedLimit.remainingAttempts} attempts remaining.`)
+
+          throw new CustomLoginError(
+            `INVALID||Invalid email or password. ${updatedLimit.remainingAttempts} attempts remaining.`
+          )
         }
 
-        // 5. Login exitoso - resetear intentos
         await resetLoginAttempts(user.id)
 
-        // 6. Crear audit log
         await prisma.auditLog.create({
           data: {
             action: 'LOGIN',
@@ -83,10 +149,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           },
         })
 
-        // 7. Retornar usuario con tipos correctos
         return {
           id: user.id,
-          email: user.email,
+          email: user.email!,
           name: user.name,
           role: user.role,
           forcePasswordChange: user.force_password_change,
@@ -95,27 +160,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async session({ session, user }) {
-      if (session.user) {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: user.id },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            role: true,
-            force_password_change: true,
-          },
-        })
-
-        if (dbUser) {
-          session.user.id = dbUser.id
-          session.user.role = dbUser.role
-          session.user.forcePasswordChange = dbUser.force_password_change
-        }
-      }
-      return session
-    },
     async jwt({ token, user }) {
       if (user && user.id) {
         token.id = user.id
@@ -123,6 +167,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.forcePasswordChange = user.forcePasswordChange
       }
       return token
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id as string
+        session.user.role = token.role as any
+        session.user.forcePasswordChange = token.forcePasswordChange as boolean
+      }
+      return session
     },
   },
 })
