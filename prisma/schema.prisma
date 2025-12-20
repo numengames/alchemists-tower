@@ -1,14 +1,154 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client"
-  output   = "../lib/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
 }
+
+// ============================================
+// ENUMS
+// ============================================
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum Environment {
+  DEVELOPMENT
+  STAGING
+  PRODUCTION
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+}
+
+enum ResourceType {
+  USER
+  WORLD
+  SESSION
+}
+
+enum LogStatus {
+  SUCCESS
+  FAILURE
+}
+
+// ============================================
+// USERS
+// ============================================
+model User {
+  id                      String    @id @default(cuid())
+  email                   String    @unique
+  name                    String
+  password_hash           String
+  role                    UserRole  @default(USER)
+  status                  UserStatus @default(ACTIVE)
+  
+  force_password_change   Boolean   @default(true)
+  password_changed_at     DateTime?
+  
+  two_factor_enabled      Boolean   @default(false)
+  two_factor_secret       String?
+  two_factor_backup_codes String[]  @default([])
+  two_factor_enabled_at   DateTime?
+  
+  created_at              DateTime  @default(now())
+  updated_at              DateTime  @updatedAt
+  last_login_at           DateTime?
+  
+  owned_worlds            World[]
+  audit_logs              AuditLog[]
+  sessions                Session[]
+
+  @@map("users")
+}
+
+// ============================================
+// WORLDS
+// ============================================
+model World {
+  id                String       @id @default(cuid())
+  name              String       @unique
+  slug              String       @unique
+  environment       Environment
+  version           String
+  
+  k8s_namespace     String?
+  k8s_cluster_name  String?
+  rds_host          String?
+  rds_schema        String?
+  s3_bucket_assets  String?
+  git_repo_url      String?
+  
+  description       String       @default("")
+  
+  owner_id          String
+  owner             User         @relation(fields: [owner_id], references: [id])
+  
+  created_at        DateTime     @default(now())
+  updated_at        DateTime     @updatedAt
+  deployed_at       DateTime?
+  
+  audit_logs        AuditLog[]
+
+  @@map("worlds")
+}
+
+// ============================================
+// AUDIT LOGS
+// ============================================
+model AuditLog {
+  id                String       @id @default(cuid())
+  
+  action            AuditAction
+  resource_type     ResourceType
+  resource_id       String?
+  details           Json?
+  
+  user_id           String?
+  user              User?        @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  user_email        String?
+  user_ip           String?
+  user_agent        String?
+  
+  world_id          String?
+  world             World?       @relation(fields: [world_id], references: [id], onDelete: SetNull)
+  
+  status            LogStatus    @default(SUCCESS)
+  error_message     String?
+  
+  created_at        DateTime     @default(now())
+  
+    @@index([user_id])
+    @@index([world_id])
+    @@index([action])
+    @@index([created_at])
+    @@map("audit_logs")
+  }
+  
+  // ============================================
+  // SESSIONS
+  // ============================================
+  model Session {
+    id          String   @id @default(cuid())
+    user_id     String
+    user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+    token       String   @unique
+    expires_at  DateTime
+    created_at  DateTime @default(now())
+    
+    @@index([user_id])
+    @@map("sessions")
+  }
