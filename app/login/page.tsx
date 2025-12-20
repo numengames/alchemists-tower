@@ -1,97 +1,47 @@
-'use client';
+'use client'
 
-import type React from 'react';
-import { useState, useEffect } from 'react';
-import { Eye, EyeOff, ArrowRight, Check, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { KhepriLogo } from '@/components/khepri-logo';
-
-interface PasswordStrength {
-  hasUppercase: boolean;
-  hasLowercase: boolean;
-  hasNumber: boolean;
-  hasSymbol: boolean;
-}
+import { useState } from 'react'
+import { signIn } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { Eye, EyeOff, ArrowRight } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { KhepriLogo } from '@/components/khepri-logo'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [isMounted, setIsMounted] = useState(false);
-  const [passwordStrength, setPasswordStrength] = useState<PasswordStrength>({
-    hasUppercase: false,
-    hasLowercase: false,
-    hasNumber: false,
-    hasSymbol: false,
-  });
-  const router = useRouter();
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  const validatePassword = (pwd: string) => {
-    setPasswordStrength({
-      hasUppercase: /[A-Z]/.test(pwd),
-      hasLowercase: /[a-z]/.test(pwd),
-      hasNumber: /[0-9]/.test(pwd),
-      hasSymbol: /[!@#$%^&*(),.?":{}|<>]/.test(pwd),
-    });
-  };
-
-  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const pwd = e.target.value;
-    setPassword(pwd);
-    validatePassword(pwd);
-  };
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+  const router = useRouter()
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
+    e.preventDefault()
+    setError('')
+    setIsLoading(true)
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      })
 
-      if (!email || !password) {
-        setError('Please fill in all fields');
-        setIsLoading(false);
-        return;
+      if (result?.error) {
+        setError(result.error)
+        setIsLoading(false)
+        return
       }
 
-      if (email && password.length >= 6) {
-        localStorage.setItem('auth_token', 'mock-token-authenticated');
-        router.push('/dashboard');
-      } else {
-        setError('Invalid email or password');
+      if (result?.ok) {
+        router.push('/dashboard')
       }
-    } catch {
-      setError('An error occurred during login');
-    } finally {
-      setIsLoading(false);
+    } catch (err) {
+      setError('An unexpected error occurred')
+      setIsLoading(false)
     }
-  };
-
-  if (!isMounted) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-card flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="bg-card border border-border rounded-2xl p-8 shadow-xl h-64" />
-        </div>
-      </div>
-    );
   }
-
-  const isPasswordStrong =
-    passwordStrength.hasUppercase &&
-    passwordStrength.hasLowercase &&
-    passwordStrength.hasNumber &&
-    passwordStrength.hasSymbol;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-card flex items-center justify-center p-4">
@@ -124,111 +74,37 @@ export default function LoginPage() {
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full cursor-text"
                 required
               />
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label htmlFor="password" className="block text-sm font-medium text-foreground">
-                  Password
-                </label>
-                <Link
-                  href="/forgot-password"
-                  className="text-xs text-primary hover:text-primary/80 transition-colors"
-                >
-                  Forgot?
-                </Link>
-              </div>
+              <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
+                Password
+              </label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   value={password}
-                  onChange={handlePasswordChange}
-                  className="w-full pr-10 cursor-text"
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pr-10"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground/60 cursor-pointer transition-colors"
-                  aria-label="Toggle password visibility"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground/60"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-
-              {password.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  <p className="text-xs text-foreground/60 font-medium">Password Requirements:</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="flex items-center gap-2 text-xs">
-                      {passwordStrength.hasUppercase ? (
-                        <Check className="w-3 h-3 text-green-500" />
-                      ) : (
-                        <X className="w-3 h-3 text-foreground/30" />
-                      )}
-                      <span
-                        className={
-                          passwordStrength.hasUppercase ? 'text-green-500' : 'text-foreground/40'
-                        }
-                      >
-                        Uppercase
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      {passwordStrength.hasLowercase ? (
-                        <Check className="w-3 h-3 text-green-500" />
-                      ) : (
-                        <X className="w-3 h-3 text-foreground/30" />
-                      )}
-                      <span
-                        className={
-                          passwordStrength.hasLowercase ? 'text-green-500' : 'text-foreground/40'
-                        }
-                      >
-                        Lowercase
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      {passwordStrength.hasNumber ? (
-                        <Check className="w-3 h-3 text-green-500" />
-                      ) : (
-                        <X className="w-3 h-3 text-foreground/30" />
-                      )}
-                      <span
-                        className={
-                          passwordStrength.hasNumber ? 'text-green-500' : 'text-foreground/40'
-                        }
-                      >
-                        Number
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      {passwordStrength.hasSymbol ? (
-                        <Check className="w-3 h-3 text-green-500" />
-                      ) : (
-                        <X className="w-3 h-3 text-foreground/30" />
-                      )}
-                      <span
-                        className={
-                          passwordStrength.hasSymbol ? 'text-green-500' : 'text-foreground/40'
-                        }
-                      >
-                        Symbol
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
             <Button
               type="submit"
-              className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold cursor-pointer transition-colors"
+              className="w-full bg-primary hover:bg-primary/90"
               disabled={isLoading}
             >
               {isLoading ? 'Signing in...' : 'Sign In'}
@@ -238,8 +114,7 @@ export default function LoginPage() {
 
           <div className="mt-6 pt-6 border-t border-border">
             <p className="text-center text-sm text-foreground/60">
-              Need access?{' '}
-              <span className="text-primary font-medium">Contact your administrator</span>
+              Need access? <span className="text-primary font-medium">Contact administrator</span>
             </p>
           </div>
         </div>
@@ -249,5 +124,5 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
-  );
+  )
 }
