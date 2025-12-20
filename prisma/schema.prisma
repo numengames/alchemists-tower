@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -56,18 +57,27 @@ model User {
   role                    UserRole  @default(USER)
   status                  UserStatus @default(ACTIVE)
   
+  // Password change
   force_password_change   Boolean   @default(true)
   password_changed_at     DateTime?
   
+  // Rate limiting
+  login_attempts          Int       @default(0)
+  locked_until            DateTime?
+  last_failed_attempt     DateTime?
+  
+  // Two-Factor Authentication
   two_factor_enabled      Boolean   @default(false)
   two_factor_secret       String?
   two_factor_backup_codes String[]  @default([])
   two_factor_enabled_at   DateTime?
   
+  // Timestamps
   created_at              DateTime  @default(now())
   updated_at              DateTime  @updatedAt
   last_login_at           DateTime?
   
+  // Relations
   owned_worlds            World[]
   audit_logs              AuditLog[]
   sessions                Session[]

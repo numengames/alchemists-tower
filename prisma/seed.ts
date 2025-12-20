@@ -1,16 +1,7 @@
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '../lib/prisma'
 import bcrypt from 'bcryptjs'
-
-const prisma = new PrismaClient()
-
-// Array de emails de usuarios
-const USER_EMAILS = [
-  'admin1@khepriforge.com',
-  'admin2@khepriforge.com',
-  'dev1@khepriforge.com',
-  'dev2@khepriforge.com',
-  'manager@khepriforge.com',
-]
+// import { PrismaPg } from '@prisma/pg-worker-js'
+// const prisma = new PrismaClient({adapter: new PrismaPg()})
 
 /**
  * Genera password aleatoria segura
@@ -49,6 +40,8 @@ function getNameFromEmail(email: string): string {
 
 async function main() {
   console.log('🌱 Seeding database...\n')
+
+  const USER_EMAILS = process.env.USER_EMAILS?.split(',') || []
 
   const createdUsers: Array<{ email: string; password: string; name: string }> = []
 
