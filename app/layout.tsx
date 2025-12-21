@@ -1,47 +1,23 @@
-import type React from 'react'
-import type { Metadata, Viewport } from 'next'
-import { Inter, Fira_Code } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
-import { SessionProvider } from 'next-auth/react'
-import { auth } from '@/lib/auth'
-import './globals.css'
+import type React from 'react';
+import type { Metadata, Viewport } from 'next';
+import { Inter, Fira_Code } from 'next/font/google';
+import { Analytics } from '@vercel/analytics/next';
+import { SessionProvider } from 'next-auth/react';
+import { ToastProvider } from '@/components/toast-provider';
+import { auth } from '@/lib/auth';
+import './globals.css';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
-const firaCode = Fira_Code({ 
-  subsets: ['latin'], 
-  variable: '--font-mono', 
-  weight: ['400', '500'] 
-})
-
-// Playfair Display con fallback local
-const playfairDisplay = {
-  variable: '--font-serif',
-  className: 'font-serif',
-}
+const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
+const firaCode = Fira_Code({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  weight: ['400', '500'],
+});
 
 export const metadata: Metadata = {
   title: 'Khepri Forge - World Management',
-  description:
-    'Create, manage and renew virtual worlds within the Numinia ecosystem. An open-source back-office platform inspired by ancient Egyptian mythology.',
-  generator: 'v0.app',
-  icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
-  },
-}
+  description: 'Create, manage and renew virtual worlds within the Numinia ecosystem.',
+};
 
 export const viewport: Viewport = {
   themeColor: [
@@ -49,24 +25,19 @@ export const viewport: Viewport = {
     { media: '(prefers-color-scheme: dark)', color: '#1f1919' },
   ],
   userScalable: false,
-}
+};
 
-export default async function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
-  const session = await auth()
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Only load session for authenticated routes
+  // Public routes (/, /login) won't have session
+  const session = await auth();
 
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-      className={`${inter.variable} ${playfairDisplay.variable} ${firaCode.variable}`}
-    >
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${firaCode.variable}`}>
       <head>
         <meta name="theme-color" content="#704225" />
-        {/* Cargar Playfair Display desde CDN alternativo */}
+        {/* Load Playfair Display from CDN */}
+        <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -76,10 +47,10 @@ export default async function RootLayout({
       </head>
       <body className="font-sans antialiased" suppressHydrationWarning>
         <SessionProvider session={session}>
-          {children}
+          <ToastProvider>{children}</ToastProvider>
         </SessionProvider>
         <Analytics />
       </body>
     </html>
-  )
+  );
 }

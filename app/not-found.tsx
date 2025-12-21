@@ -13,10 +13,10 @@ export default function NotFound() {
           The page you're looking for doesn't exist or has been moved.
         </p>
 
-        <Link href="/dashboard" className="inline-block">
+        <Link href="/" className="inline-block">
           <Button className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold cursor-pointer">
             <Home className="w-4 h-4 mr-2" />
-            Go to Dashboard
+            Go to Home
           </Button>
         </Link>
 

@@ -1,15 +1,15 @@
-import NextAuth from 'next-auth'
-import CredentialsProvider from 'next-auth/providers/credentials'
-import { CredentialsSignin } from 'next-auth'
-import { prisma } from '@/lib/prisma'
-import bcrypt from 'bcryptjs'
-import { checkRateLimit, recordFailedAttempt, resetLoginAttempts } from '@/lib/rate-limit'
-import { UserStatus } from '@/generated/prisma/enums'
+import NextAuth from 'next-auth';
+import CredentialsProvider from 'next-auth/providers/credentials';
+import { CredentialsSignin } from 'next-auth';
+import { prisma } from '@/lib/prisma';
+import bcrypt from 'bcryptjs';
+import { checkRateLimit, recordFailedAttempt, resetLoginAttempts } from '@/lib/rate-limit';
+import { UserStatus } from '@/generated/prisma/enums';
 
 class CustomLoginError extends CredentialsSignin {
   constructor(public code: string) {
-    super()
-    this.message = code
+    super();
+    this.message = code;
   }
 }
 
@@ -21,6 +21,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   pages: {
     signIn: '/login',
   },
+  trustHost: true,
   logger: {
     error: (error) => {
       if (
@@ -28,9 +29,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         error.message.includes('LOCKED||') ||
         error.message.includes('SUSPENDED||')
       ) {
-        console.error('[auth]', error.message.split('||')[1])
+        console.error('[auth]', error.message.split('||')[1]);
       } else {
-        console.error('[auth]', error.message)
+        console.error('[auth]', error.message);
       }
     },
     warn: () => {},
@@ -45,13 +46,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new CustomLoginError('INVALID||Please enter email and password')
+          throw new CustomLoginError('INVALID||Please enter email and password');
         }
 
-        const email = credentials.email as string
-        const password = credentials.password as string
+        const email = credentials.email as string;
+        const password = credentials.password as string;
 
-        const rateLimit = await checkRateLimit(email)
+        const rateLimit = await checkRateLimit(email);
 
         if (!rateLimit.allowed) {
           // Audit log: Rate limit exceeded
@@ -63,22 +64,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               status: 'FAILURE',
               error_message: `Rate limit exceeded: ${rateLimit.lockDuration}`,
             },
-          })
+          });
 
           if (rateLimit.lockDuration === 'permanent') {
-            throw new CustomLoginError('SUSPENDED||Account suspended. Contact administrator.')
+            throw new CustomLoginError('SUSPENDED||Account suspended. Contact administrator.');
           }
           throw new CustomLoginError(
-            `LOCKED||Too many failed attempts. Try again in ${rateLimit.lockDuration}.`
-          )
+            `LOCKED||Too many failed attempts. Try again in ${rateLimit.lockDuration}.`,
+          );
         }
 
         const user = await prisma.user.findUnique({
           where: { email },
-        })
+        });
 
         if (!user) {
-          await recordFailedAttempt(email)
+          await recordFailedAttempt(email);
 
           // Audit log: User not found
           await prisma.auditLog.create({
@@ -89,9 +90,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               status: 'FAILURE',
               error_message: 'Invalid credentials (user not found)',
             },
-          })
+          });
 
-          throw new CustomLoginError('INVALID||Invalid email or password')
+          throw new CustomLoginError('INVALID||Invalid email or password');
         }
 
         if (user.status === UserStatus.SUSPENDED) {
@@ -105,16 +106,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               status: 'FAILURE',
               error_message: 'Account suspended',
             },
-          })
+          });
 
-          throw new CustomLoginError('SUSPENDED||Account suspended. Contact administrator.')
+          throw new CustomLoginError('SUSPENDED||Account suspended. Contact administrator.');
         }
 
-        const isPasswordValid = await bcrypt.compare(password, user.password_hash)
+        const isPasswordValid = await bcrypt.compare(password, user.password_hash);
 
         if (!isPasswordValid) {
-          await recordFailedAttempt(email)
-          const updatedLimit = await checkRateLimit(email)
+          await recordFailedAttempt(email);
+          const updatedLimit = await checkRateLimit(email);
 
           // Audit log: Invalid password
           await prisma.auditLog.create({
@@ -126,18 +127,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               status: 'FAILURE',
               error_message: `Invalid password (${5 - updatedLimit.remainingAttempts}/5 attempts)`,
             },
-          })
+          });
 
           if (updatedLimit.remainingAttempts === 0 && updatedLimit.lockDuration) {
-            throw new CustomLoginError(`LOCKED||Account locked for ${updatedLimit.lockDuration}.`)
+            throw new CustomLoginError(`LOCKED||Account locked for ${updatedLimit.lockDuration}.`);
           }
 
           throw new CustomLoginError(
-            `INVALID||Invalid email or password. ${updatedLimit.remainingAttempts} attempts remaining.`
-          )
+            `INVALID||Invalid email or password. ${updatedLimit.remainingAttempts} attempts remaining.`,
+          );
         }
 
-        await resetLoginAttempts(user.id)
+        await resetLoginAttempts(user.id);
 
         await prisma.auditLog.create({
           data: {
@@ -147,7 +148,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             user_email: user.email,
             status: 'SUCCESS',
           },
-        })
+        });
 
         return {
           id: user.id,
@@ -155,26 +156,31 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: user.name,
           role: user.role,
           forcePasswordChange: user.force_password_change,
-        }
+        };
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user }) {
-      if (user && user.id) {
-        token.id = user.id
-        token.role = user.role
-        token.forcePasswordChange = user.forcePasswordChange
+      if (user) {
+        token.id = user.id;
+        token.role = user.role;
+        token.forcePasswordChange = user.forcePasswordChange;
       }
-      return token
+      return token;
     },
     async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id as string
-        session.user.role = token.role as any
-        session.user.forcePasswordChange = token.forcePasswordChange as boolean
+      if (session.user && token) {
+        session.user.id = token.id as string;
+        session.user.role = token.role as any;
+        session.user.forcePasswordChange = token.forcePasswordChange as boolean;
       }
-      return session
+      return session;
+    },
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith('/')) return `${baseUrl}${url}`;
+      if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
     },
   },
-})
+});

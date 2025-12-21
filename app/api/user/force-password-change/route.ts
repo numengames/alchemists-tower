@@ -1,21 +1,34 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/api-auth';
 import { prisma } from '@/lib/prisma';
+import bcrypt from 'bcryptjs';
 
 export async function POST(request: Request) {
   return withAuth(request, async (session) => {
     try {
-      const { name } = await request.json();
+      const { newPassword } = await request.json();
 
-      if (!name || typeof name !== 'string' || name.trim().length === 0) {
-        return NextResponse.json({ error: 'Invalid name' }, { status: 400 });
+      if (!newPassword || newPassword.length < 8) {
+        return NextResponse.json(
+          { error: 'Password must be at least 8 characters' },
+          { status: 400 },
+        );
       }
 
+      // Hash new password
+      const newPasswordHash = await bcrypt.hash(newPassword, 12);
+
+      // Update password and remove force flag
       await prisma.user.update({
         where: { id: session.user.id },
-        data: { name: name.trim() },
+        data: {
+          password_hash: newPasswordHash,
+          password_changed_at: new Date(),
+          force_password_change: false,
+        },
       });
 
+      // Audit log
       await prisma.auditLog.create({
         data: {
           action: 'UPDATE',
@@ -23,13 +36,13 @@ export async function POST(request: Request) {
           user_id: session.user.id,
           user_email: session.user.email,
           status: 'SUCCESS',
-          details: { field: 'name', new_value: name.trim() },
+          details: { forced: true },
         },
       });
 
       return NextResponse.json({ success: true });
     } catch (error) {
-      console.error('Update name error:', error);
+      console.error('Force password change error:', error);
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
   });

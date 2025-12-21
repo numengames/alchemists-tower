@@ -17,6 +17,7 @@ import {
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { signOut, useSession } from 'next-auth/react';
 
 const activities = [
   {
@@ -63,20 +64,20 @@ export default function ActivityPage() {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const { status } = useSession();
   const router = useRouter();
 
   useEffect(() => {
     setIsMounted(true);
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
+    if (status === 'unauthenticated') {
       router.push('/login');
     }
-  }, [router]);
+  }, [status, router]);
 
-  const handleLogoutConfirm = () => {
+  const handleLogoutConfirm = async () => {
     setIsLogoutModalOpen(false);
     localStorage.removeItem('auth_token');
-    router.push('/login');
+    await signOut({ callbackUrl: '/login' });
   };
 
   const totalPages = Math.ceil(activities.length / ITEMS_PER_PAGE);
@@ -94,7 +95,7 @@ export default function ActivityPage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar onSignOut={() => setIsLogoutModalOpen(true)} />
         <div className="flex-1 overflow-auto">
-          <div className="p-6 md:p-8 space-y-8 max-w-4xl">
+          <div className="p-6 md:px-20 space-y-8">
             <div>
               <h1 className="text-3xl md:text-4xl font-serif font-bold text-foreground mb-2">
                 Activity Log
@@ -109,7 +110,7 @@ export default function ActivityPage() {
                 return (
                   <Card
                     key={activity.id}
-                    className="p-4 bg-card border border-border rounded-xl hover:bg-card/80 transition-colors cursor-pointer"
+                    className="p-4 bg-card border border-border rounded-xl hover:bg-card/80 transition-colors"
                   >
                     <div className="flex items-start gap-3">
                       <div

@@ -1,11 +1,11 @@
-import { UserStatus } from '@/generated/prisma/enums'
-import { prisma } from '@/lib/prisma'
+import { UserStatus } from '@/generated/prisma/enums';
+import { prisma } from '@/lib/prisma';
 
 interface RateLimitResult {
-  allowed: boolean
-  remainingAttempts: number
-  lockDuration?: string
-  lockedUntil?: Date
+  allowed: boolean;
+  remainingAttempts: number;
+  lockDuration?: string;
+  lockedUntil?: Date;
 }
 
 export async function checkRateLimit(email: string): Promise<RateLimitResult> {
@@ -17,66 +17,59 @@ export async function checkRateLimit(email: string): Promise<RateLimitResult> {
       last_failed_attempt: true,
       status: true,
     },
-  })
+  });
 
   if (!user) {
-    return { allowed: true, remainingAttempts: 5 }
+    return { allowed: true, remainingAttempts: 5 };
   }
 
-  // Verificar si el usuario está suspendido permanentemente
   if (user.status === UserStatus.SUSPENDED) {
     return {
       allowed: false,
       remainingAttempts: 0,
       lockDuration: 'permanent',
-    }
+    };
   }
 
-  // Verificar si está bloqueado temporalmente
   if (user.locked_until && user.locked_until > new Date()) {
     return {
       allowed: false,
       remainingAttempts: 0,
       lockDuration: getTimeRemaining(user.locked_until),
       lockedUntil: user.locked_until,
-    }
+    };
   }
 
-  const remainingAttempts = 5 - user.login_attempts
+  const remainingAttempts = 5 - user.login_attempts;
 
   return {
     allowed: remainingAttempts > 0,
     remainingAttempts: Math.max(0, remainingAttempts),
-  }
+  };
 }
 
 export async function recordFailedAttempt(email: string): Promise<RateLimitResult> {
   const user = await prisma.user.findUnique({
     where: { email },
     select: { id: true, login_attempts: true },
-  })
+  });
 
   if (!user) {
-    return { allowed: true, remainingAttempts: 5 }
+    return { allowed: true, remainingAttempts: 5 };
   }
 
-  const newAttempts = user.login_attempts + 1
-  let lockUntil: Date | null = null
-  let newStatus: UserStatus | undefined = undefined
+  const newAttempts = user.login_attempts + 1;
+  let lockUntil: Date | null = null;
+  let newStatus: UserStatus | undefined = undefined;
 
-  // Determinar bloqueo según intentos
   if (newAttempts === 5) {
-    // 5 intentos → 1 minuto
-    lockUntil = new Date(Date.now() + 1 * 60 * 1000)
+    lockUntil = new Date(Date.now() + 1 * 60 * 1000);
   } else if (newAttempts === 10) {
-    // 10 intentos → 10 minutos
-    lockUntil = new Date(Date.now() + 10 * 60 * 1000)
+    lockUntil = new Date(Date.now() + 10 * 60 * 1000);
   } else if (newAttempts === 15) {
-    // 15 intentos → 1 día
-    lockUntil = new Date(Date.now() + 24 * 60 * 60 * 1000)
+    lockUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
   } else if (newAttempts >= 20) {
-    // 20 intentos → suspensión permanente
-    newStatus = UserStatus.SUSPENDED
+    newStatus = UserStatus.SUSPENDED;
   }
 
   await prisma.user.update({
@@ -87,10 +80,10 @@ export async function recordFailedAttempt(email: string): Promise<RateLimitResul
       last_failed_attempt: new Date(),
       ...(newStatus && { status: newStatus }),
     },
-  })
+  });
 
-  const result = await checkRateLimit(email)
-  return result
+  const result = await checkRateLimit(email);
+  return result;
 }
 
 export async function resetLoginAttempts(userId: string): Promise<void> {
@@ -102,22 +95,22 @@ export async function resetLoginAttempts(userId: string): Promise<void> {
       last_failed_attempt: null,
       last_login_at: new Date(),
     },
-  })
+  });
 }
 
 function getTimeRemaining(until: Date): string {
-  const diff = until.getTime() - Date.now()
-  const minutes = Math.ceil(diff / 1000 / 60)
-  
+  const diff = until.getTime() - Date.now();
+  const minutes = Math.ceil(diff / 1000 / 60);
+
   if (minutes < 60) {
-    return `${minutes} minute${minutes !== 1 ? 's' : ''}`
+    return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
   }
-  
-  const hours = Math.ceil(minutes / 60)
+
+  const hours = Math.ceil(minutes / 60);
   if (hours < 24) {
-    return `${hours} hour${hours !== 1 ? 's' : ''}`
+    return `${hours} hour${hours !== 1 ? 's' : ''}`;
   }
-  
-  const days = Math.ceil(hours / 24)
-  return `${days} day${days !== 1 ? 's' : ''}`
+
+  const days = Math.ceil(hours / 24);
+  return `${days} day${days !== 1 ? 's' : ''}`;
 }

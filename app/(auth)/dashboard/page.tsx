@@ -7,6 +7,7 @@ import { CreateWorldModal } from '@/components/create-world-modal';
 import { LogoutModal } from '@/components/logout-modal';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 
 export default function DashboardPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -23,10 +24,10 @@ export default function DashboardPage() {
     }
   }, [router]);
 
-  const handleLogoutConfirm = () => {
+  const handleLogoutConfirm = async () => {
     setIsLogoutModalOpen(false);
     localStorage.removeItem('auth_token');
-    router.push('/login');
+    await signOut({ callbackUrl: '/login' });
   };
 
   if (!isMounted) {
@@ -37,11 +38,7 @@ export default function DashboardPage() {
     <div className="flex h-screen bg-background text-foreground overflow-hidden flex-col md:flex-row">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar
-          onCreateClick={() => setIsCreateModalOpen(true)}
-          onSignOut={() => setIsLogoutModalOpen(true)}
-          showCreateButton={true}
-        />
+        <TopBar onSignOut={() => setIsLogoutModalOpen(true)} />
         <DashboardContent onCreateClick={() => setIsCreateModalOpen(true)} />
         <CreateWorldModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
         <LogoutModal

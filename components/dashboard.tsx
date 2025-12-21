@@ -10,6 +10,7 @@ import { DashboardContent } from '@/components/dashboard-content';
 import { CreateWorldModal } from '@/components/create-world-modal';
 import { LogoutModal } from '@/components/logout-modal';
 import { AuthProvider } from '@/components/auth-provider';
+import { signOut } from 'next-auth/react';
 
 export function Dashboard() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -31,10 +32,10 @@ export function Dashboard() {
     return null;
   }
 
-  const handleLogoutConfirm = () => {
+  const handleLogoutConfirm = async () => {
     setIsLogoutModalOpen(false);
     localStorage.removeItem('isLoggedIn');
-    router.push('/login');
+    await signOut({ callbackUrl: '/login' });
   };
 
   return (

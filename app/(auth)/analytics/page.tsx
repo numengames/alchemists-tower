@@ -18,6 +18,7 @@ import {
 import { Card } from '@/components/ui/card';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { signOut, useSession } from 'next-auth/react';
 
 const analyticsData = [
   { month: 'Jan', worlds: 24, active: 18, paused: 6 },
@@ -31,20 +32,20 @@ const analyticsData = [
 export default function AnalyticsPage() {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const { status } = useSession();
   const router = useRouter();
 
   useEffect(() => {
     setIsMounted(true);
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
+    if (status === 'unauthenticated') {
       router.push('/login');
     }
-  }, [router]);
+  }, [status, router]);
 
-  const handleLogoutConfirm = () => {
+  const handleLogoutConfirm = async () => {
     setIsLogoutModalOpen(false);
     localStorage.removeItem('auth_token');
-    router.push('/login');
+    await signOut({ callbackUrl: '/login' });
   };
 
   if (!isMounted) {
@@ -57,7 +58,7 @@ export default function AnalyticsPage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar onSignOut={() => setIsLogoutModalOpen(true)} />
         <div className="flex-1 overflow-auto">
-          <div className="p-6 md:p-8 space-y-8 max-w-6xl">
+          <div className="p-6 md:px-20 space-y-8">
             {/* Page Header */}
             <div>
               <h1 className="text-3xl md:text-4xl font-serif font-bold text-foreground mb-2">

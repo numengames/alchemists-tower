@@ -22,15 +22,16 @@ const templates = [
 
 const versions = ['v2.4.1', 'v2.4.0', 'v2.3.9', 'v2.3.8'];
 
+const initialFormData = {
+  name: '',
+  environment: 'production',
+  template: 'starter',
+  version: 'v2.4.1',
+};
+
 export function CreateWorldModal({ isOpen, onClose }: CreateWorldModalProps) {
   const [step, setStep] = useState<Step>('name');
-  const [formData, setFormData] = useState({
-    name: '',
-    environment: 'production',
-    template: 'starter',
-    version: 'v2.4.1',
-  });
-
+  const [formData, setFormData] = useState(initialFormData);
   if (!isOpen) return null;
 
   const handleNext = () => {
@@ -54,6 +55,12 @@ export function CreateWorldModal({ isOpen, onClose }: CreateWorldModalProps) {
     onClose();
   };
 
+  const handleClose = () => {
+    setFormData(initialFormData);
+    setStep('name');
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-sidebar border border-sidebar-border rounded-xl w-full max-w-md mx-4">
@@ -61,7 +68,7 @@ export function CreateWorldModal({ isOpen, onClose }: CreateWorldModalProps) {
         <div className="border-b border-sidebar-border px-6 py-6 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-foreground">Rebirth Cycle: Create World</h2>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1 hover:bg-sidebar-accent/30 rounded-lg transition-colors"
           >
             <X className="w-5 h-5 text-foreground/60" strokeWidth={1.5} />
@@ -88,7 +95,7 @@ export function CreateWorldModal({ isOpen, onClose }: CreateWorldModalProps) {
             <div>
               <label className="block text-sm font-medium text-foreground mb-4">Environment</label>
               <div className="space-y-2">
-                {['production', 'staging', 'development'].map((env) => (
+                {['production', 'development'].map((env) => (
                   <button
                     key={env}
                     onClick={() => setFormData({ ...formData, environment: env })}
@@ -102,7 +109,6 @@ export function CreateWorldModal({ isOpen, onClose }: CreateWorldModalProps) {
                     <div className="font-medium capitalize">{env}</div>
                     <div className="text-xs text-foreground/50 mt-1">
                       {env === 'production' && 'Live environment'}
-                      {env === 'staging' && 'Testing environment'}
                       {env === 'development' && 'Development sandbox'}
                     </div>
                   </button>
@@ -199,6 +205,7 @@ export function CreateWorldModal({ isOpen, onClose }: CreateWorldModalProps) {
           <Button
             onClick={step === 'confirm' ? handleCreate : handleNext}
             className="flex-1 bg-solar-gold text-sidebar-foreground hover:bg-solar-amber"
+            disabled={step === 'confirm' || formData.name.trim() === ''}
           >
             {step === 'confirm' ? 'Launch World' : 'Next'}
             {step !== 'confirm' && <ChevronRight className="w-4 h-4 ml-2" strokeWidth={2} />}
