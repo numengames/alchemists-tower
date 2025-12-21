@@ -24,7 +24,7 @@ const mockWorlds = [
   {
     id: '2',
     name: 'Echo Chamber',
-    environment: 'staging',
+    environment: 'development',
     version: 'v2.4.0',
     status: 'paused' as const,
     owner: 'Kai Storm',
@@ -65,9 +65,17 @@ export function DashboardContent({ onCreateClick }: DashboardContentProps) {
     <main className="flex-1 overflow-auto bg-background">
       <div className="p-8">
         {/* Header */}
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-foreground mb-2">Worlds</h2>
-          <p className="text-foreground/60">Manage your virtual worlds across all environments</p>
+        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+          <div className="mb-8">
+            <h2 className="text-3xl font-bold text-foreground mb-2">Worlds</h2>
+            <p className="text-foreground/60">Manage your virtual worlds across all environments</p>
+          </div>
+          <Button
+            onClick={onCreateClick}
+            className="bg-solar-gold text-sidebar-foreground hover:bg-solar-amber"
+          >
+            <Plus className="w-4 h-4 mr-2" /> Create New World
+          </Button>
         </div>
 
         {/* Stats Grid */}

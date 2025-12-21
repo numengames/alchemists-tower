@@ -39,13 +39,13 @@ export default function Error({
             Try again
           </Button>
 
-          <Link href="/dashboard" className="block">
+          <Link href="/" className="block">
             <Button
               variant="outline"
               className="w-full border-border text-foreground hover:bg-secondary cursor-pointer bg-transparent"
             >
               <Home className="w-4 h-4 mr-2" />
-              Go to Dashboard
+              Go to Home
             </Button>
           </Link>
         </div>

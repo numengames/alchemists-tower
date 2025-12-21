@@ -5,12 +5,10 @@ import { Input } from '@/components/ui/input';
 import { useState, useEffect } from 'react';
 
 interface TopBarProps {
-  onCreateClick?: () => void;
   onSignOut: () => void;
-  showCreateButton?: boolean;
 }
 
-export function TopBar({ onCreateClick, onSignOut, showCreateButton = false }: TopBarProps) {
+export function TopBar({ onSignOut }: TopBarProps) {
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [isMounted, setIsMounted] = useState(false);
 
@@ -78,16 +76,6 @@ export function TopBar({ onCreateClick, onSignOut, showCreateButton = false }: T
               strokeWidth={1.5}
             />
           )}
-        </button>
-
-        <button
-          className="p-2 hover:bg-sidebar-accent/20 rounded-lg transition-colors cursor-pointer flex-shrink-0"
-          title="Notifications"
-        >
-          <Bell
-            className="w-5 h-5 text-sidebar-foreground/60 hover:text-accent transition-colors"
-            strokeWidth={1.5}
-          />
         </button>
 
         <button

@@ -5,8 +5,7 @@ import { TopBar } from '@/components/top-bar';
 import { LogoutModal } from '@/components/logout-modal';
 import { Card } from '@/components/ui/card';
 import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 const faqs = [
   {
@@ -19,7 +18,7 @@ const faqs = [
     id: 2,
     question: 'What is the difference between environments?',
     answer:
-      'Production environments are for live, user-facing worlds. Staging is for testing new features before deployment. Development is for experimental work and debugging.',
+      'Production environments are for live, user-facing worlds. Development is for experimental work and debugging.',
   },
   {
     id: 3,
@@ -48,99 +47,67 @@ const faqs = [
 ];
 
 export default function HelpPage() {
-  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const router = useRouter();
-
-  useEffect(() => {
-    setIsMounted(true);
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
-      router.push('/login');
-    }
-  }, [router]);
-
-  const handleLogoutConfirm = () => {
-    setIsLogoutModalOpen(false);
-    localStorage.removeItem('auth_token');
-    router.push('/login');
-  };
-
-  if (!isMounted) {
-    return null;
-  }
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden flex-col md:flex-row">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar onSignOut={() => setIsLogoutModalOpen(true)} />
-        <div className="flex-1 overflow-auto">
-          <div className="p-6 md:p-8 space-y-8 max-w-4xl">
-            {/* Page Header */}
-            <div>
-              <h1 className="text-3xl md:text-4xl font-serif font-bold text-foreground mb-2 flex items-center gap-3">
-                <HelpCircle className="w-8 h-8 text-primary" strokeWidth={1.5} />
-                Help & Support
-              </h1>
-              <p className="text-foreground/60">Frequently asked questions and guides</p>
-            </div>
-
-            {/* FAQ Section */}
-            <div className="space-y-4">
-              {faqs.map((faq) => (
-                <Card
-                  key={faq.id}
-                  className="bg-card border border-border rounded-xl overflow-hidden"
-                >
-                  <button
-                    onClick={() => setExpandedId(expandedId === faq.id ? null : faq.id)}
-                    className="w-full p-6 flex items-center justify-between text-left hover:bg-card/80 transition-colors cursor-pointer"
-                  >
-                    <h3 className="text-lg font-semibold text-foreground pr-4">{faq.question}</h3>
-                    {expandedId === faq.id ? (
-                      <ChevronUp className="w-5 h-5 text-primary flex-shrink-0" strokeWidth={1.5} />
-                    ) : (
-                      <ChevronDown
-                        className="w-5 h-5 text-foreground/40 flex-shrink-0"
-                        strokeWidth={1.5}
-                      />
-                    )}
-                  </button>
-                  {expandedId === faq.id && (
-                    <div className="px-6 pb-6 pt-0">
-                      <div className="border-t border-border pt-4">
-                        <p className="text-foreground/70 leading-relaxed">{faq.answer}</p>
-                      </div>
-                    </div>
-                  )}
-                </Card>
-              ))}
-            </div>
-
-            {/* Contact Support */}
-            <Card className="p-6 bg-primary/5 border border-primary/20 rounded-xl">
-              <h2 className="text-xl font-serif font-bold text-foreground mb-2">
-                Still need help?
-              </h2>
-              <p className="text-foreground/60 mb-4">
-                Can't find what you're looking for? Our support team is here to help.
-              </p>
-              <a
-                href="mailto:support@khepriforge.com"
-                className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium transition-colors"
-              >
-                Contact Support →
-              </a>
-            </Card>
+      <div className="flex-1 overflow-auto">
+        <div className="p-6 md:p-20 space-y-8">
+          {/* Page Header */}
+          <div>
+            <h1 className="text-3xl md:text-4xl font-serif font-bold text-foreground mb-2 flex items-center gap-3">
+              <HelpCircle className="w-8 h-8 text-primary" strokeWidth={1.5} />
+              Help & Support
+            </h1>
+            <p className="text-foreground/60">Frequently asked questions and guides</p>
           </div>
+
+          {/* FAQ Section */}
+          <div className="space-y-4">
+            {faqs.map((faq) => (
+              <Card
+                key={faq.id}
+                className="bg-card border border-border rounded-xl overflow-hidden"
+              >
+                <button
+                  onClick={() => setExpandedId(expandedId === faq.id ? null : faq.id)}
+                  className="w-full p-6 flex items-center justify-between text-left hover:bg-card/80 transition-colors cursor-pointer"
+                >
+                  <h3 className="text-lg font-semibold text-foreground pr-4">{faq.question}</h3>
+                  {expandedId === faq.id ? (
+                    <ChevronUp className="w-5 h-5 text-primary flex-shrink-0" strokeWidth={1.5} />
+                  ) : (
+                    <ChevronDown
+                      className="w-5 h-5 text-foreground/40 flex-shrink-0"
+                      strokeWidth={1.5}
+                    />
+                  )}
+                </button>
+                {expandedId === faq.id && (
+                  <div className="px-6 pb-6 pt-0">
+                    <div className="border-t border-border pt-4">
+                      <p className="text-foreground/70 leading-relaxed">{faq.answer}</p>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
+
+          {/* Contact Support */}
+          <Card className="p-6 bg-primary/5 border border-primary/20 rounded-xl">
+            <h2 className="text-xl font-serif font-bold text-foreground mb-2">Still need help?</h2>
+            <p className="text-foreground/60 mb-4">
+              Can't find what you're looking for? Our support team is here to help.
+            </p>
+            <a
+              href="mailto:support@khepriforge.com"
+              className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium transition-colors"
+            >
+              Contact Support →
+            </a>
+          </Card>
         </div>
-        <LogoutModal
-          isOpen={isLogoutModalOpen}
-          onConfirm={handleLogoutConfirm}
-          onCancel={() => setIsLogoutModalOpen(false)}
-        />
       </div>
     </div>
   );

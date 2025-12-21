@@ -40,7 +40,6 @@ const statusConfig = {
 
 const envConfig = {
   production: 'Pro',
-  staging: 'Stg',
   development: 'Dev',
 };
 

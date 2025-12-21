@@ -12,14 +12,14 @@ export function KhepriLogo({ size = 64, className = '' }: KhepriLogoProps) {
 
   return (
     <div
-      className={`relative inline-block cursor-pointer ${className}`}
+      className={`relative inline-block ${className}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       style={{ width: size, height: size }}
     >
       {/* Sun disk background */}
       <div
-        className={`absolute inset-0 rounded-full bg-gradient-to-br from-primary to-accent transition-all duration-500 ${
+        className={`absolute inset-0 rounded-full bg-linear-to-br suppressHydrationWarning from-primary to-accent transition-all duration-500 ${
           isHovered ? 'scale-110 opacity-20 blur-md' : 'scale-100 opacity-10'
         }`}
       />
@@ -29,7 +29,7 @@ export function KhepriLogo({ size = 64, className = '' }: KhepriLogoProps) {
         viewBox="0 0 100 100"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        className={`relative z-10 transition-transform duration-700 ${isHovered ? 'scale-90 rotate-12' : 'scale-100'}`}
+        className={`relative z-10 transition-transform duration-700 suppressHydrationWarning ${isHovered ? 'scale-90 rotate-12' : 'scale-100'}`}
         style={{ width: size, height: size }}
       >
         {/* Scarab body */}
@@ -39,7 +39,7 @@ export function KhepriLogo({ size = 64, className = '' }: KhepriLogoProps) {
           rx="20"
           ry="25"
           fill="currentColor"
-          className={`text-primary transition-all duration-500 ${isHovered ? 'opacity-100' : 'opacity-90'}`}
+          className={`text-primary transition-all duration-500 suppressHydrationWarning ${isHovered ? 'opacity-100' : 'opacity-90'}`}
         />
 
         {/* Scarab head */}
@@ -48,7 +48,7 @@ export function KhepriLogo({ size = 64, className = '' }: KhepriLogoProps) {
           cy="30"
           r="12"
           fill="currentColor"
-          className={`text-primary transition-all duration-500 ${isHovered ? 'opacity-100' : 'opacity-90'}`}
+          className={`text-primary transition-all duration-500 suppressHydrationWarning ${isHovered ? 'opacity-100' : 'opacity-90'}`}
         />
 
         {/* Left wing */}
@@ -56,7 +56,7 @@ export function KhepriLogo({ size = 64, className = '' }: KhepriLogoProps) {
           d="M 30 55 Q 15 55 10 70 Q 15 80 30 75 Z"
           fill="currentColor"
           className={`text-accent transition-all duration-700 origin-center ${
-            isHovered ? 'opacity-100 translate-x-[-8px]' : 'opacity-80 translate-x-0'
+            isHovered ? 'opacity-100 -translate-x-2' : 'opacity-80 translate-x-0'
           }`}
         />
 
@@ -64,8 +64,8 @@ export function KhepriLogo({ size = 64, className = '' }: KhepriLogoProps) {
         <path
           d="M 70 55 Q 85 55 90 70 Q 85 80 70 75 Z"
           fill="currentColor"
-          className={`text-accent transition-all duration-700 origin-center ${
-            isHovered ? 'opacity-100 translate-x-[8px]' : 'opacity-80 translate-x-0'
+          className={`text-accent transition-all duration-700 origin-center suppressHydrationWarning ${
+            isHovered ? 'opacity-100 translate-x-2' : 'opacity-80 translate-x-0'
           }`}
         />
 
@@ -86,7 +86,7 @@ export function KhepriLogo({ size = 64, className = '' }: KhepriLogoProps) {
           stroke="currentColor"
           strokeWidth="2"
           strokeLinecap="round"
-          className={`text-primary transition-all duration-500 ${isHovered ? 'opacity-100' : 'opacity-70'}`}
+          className={`text-primary transition-all duration-500 suppressHydrationWarning ${isHovered ? 'opacity-100' : 'opacity-70'}`}
         />
 
         {/* Right antenna */}
@@ -95,7 +95,7 @@ export function KhepriLogo({ size = 64, className = '' }: KhepriLogoProps) {
           stroke="currentColor"
           strokeWidth="2"
           strokeLinecap="round"
-          className={`text-primary transition-all duration-500 ${isHovered ? 'opacity-100' : 'opacity-70'}`}
+          className={`text-primary transition-all duration-500 suppressHydrationWarning ${isHovered ? 'opacity-100' : 'opacity-70'}`}
         />
 
         {/* Left legs */}
@@ -142,7 +142,7 @@ export function KhepriLogo({ size = 64, className = '' }: KhepriLogoProps) {
                 transform: `translate(-50%, -100%) rotate(${i * 45}deg)`,
               }}
             >
-              <div className="w-full h-3 bg-gradient-to-t from-accent/40 to-transparent rounded-full" />
+              <div className="w-full h-3 bg-linear-to-t from-accent/40 to-transparent rounded-full" />
             </div>
           ))}
         </div>
