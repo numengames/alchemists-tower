@@ -3,24 +3,22 @@
 > World Management Backoffice for the Numinia Ecosystem
 
 <div align="center">
-  <img src="public/khepr.jpeg" alt="Khepri Logo" width="200" height="200" />
+  <img src="public/khepri.jpeg" alt="Khepri Logo" width="200" height="200" />
   
-  **The Sacred Forge of Digital Worlds**
+  **The Sacred Forge of Virtual Worlds**
   
   *Where the Oracles craft the infinite realms of Numinia*
 </div>
 
-Khepri Forge is an open-source back-office platform for creating, managing, and renewing virtual worlds within the Numinia metaverse. Inspired by ancient Egyptian mythology, particularly the scarab god Khepri who represents renewal and transformation.
+Khepri Forge is an open-source back-office platform for creating, managing, and renewing virtual worlds within the Numinia metaverse.
 
 ---
 
 ## 🌅 The Legend of Khepri
 
-In ancient times, the scarab god **Khepri** rolled the sun across the sky each dawn, symbolizing eternal renewal and transformation. Just as Khepri brought light to each new day, this forge brings life to digital worlds—rolling them into existence, nurturing their growth, and guiding their evolution.
+In ancient times, the scarab god **Khepri** rolled the sun across the sky each dawn, symbolizing eternal renewal and transformation. Just as Khepri brought light to each new day, this forge brings life to virtual worlds—rolling them into existence, nurturing their growth, and guiding their evolution.
 
 **Khepri Forge** is the sacred tool entrusted to the **Oracles of Numinia**—the chosen few who possess the wisdom and power to shape reality itself. Through this mystical interface, Oracles command the creation, management, and renewal of countless virtual worlds within the Numinia metaverse.
-
-Each world is a scarab egg—a vessel of potential waiting to hatch. The Oracles, like Khepri, roll these worlds into being, watching over them as they grow from fledgling realms into thriving universes filled with adventure, mystery, and wonder.
 
 ---
 
@@ -64,7 +62,6 @@ The Forge is built upon the most advanced mystical frameworks known to the digit
 
 ### Data & Authentication
 
-- **PostgreSQL 14+** - The eternal database where all truths are recorded
 - **Prisma 7** - The object-relational mapper that translates between realms
 - **NextAuth.js v5** - The guardian that verifies the identity of all who approach
 - **bcrypt** - The cryptographic ward that protects sacred passwords
@@ -132,22 +129,8 @@ To maintain harmony within the Forge, all who contribute must adhere to these sa
 
 ---
 
-## 🌟 Acknowledgements
-
-This Forge stands on the shoulders of digital giants:
-
-- **The Khepri Mythos** - Ancient Egyptian wisdom that inspires transformation and renewal
-- **The Numinia Vision** - A metaverse where imagination becomes reality
-- **The Open Source Community** - Thousands of developers who've shared their knowledge freely
-- **Hyperfy** - The engine that powers our virtual worlds
-- **Vercel & Next.js Team** - For creating the framework that makes the impossible possible
-- **Prisma Team** - For database magic that feels like poetry
-- **The Oracle Team** - The brave souls who will wield this tool to create wonder
-
----
-
 <div align="center">
   <strong>Where Worlds Rise Again</strong>
   <br/>
-  🏺 Khepri Forge • Built with ❤️ for Numinia
+  🏺 Khepri Forge • Built with ❤️ for Numen Games
 </div>
