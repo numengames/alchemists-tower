@@ -101,7 +101,7 @@ export default function HelpPage() {
               Can't find what you're looking for? Our support team is here to help.
             </p>
             <a
-              href="mailto:support@khepriforge.com"
+              href="mailto:gm@numengames.com"
               className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium transition-colors"
             >
               Contact Support →

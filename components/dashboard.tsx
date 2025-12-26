@@ -92,7 +92,7 @@ function LandingPage({ onSignIn }: { onSignIn: () => void }) {
               <line x1="21" y1="12" x2="23" y2="12" stroke="currentColor" strokeWidth="2" />
             </svg>
           </div>
-          <h1 className="text-5xl md:text-6xl font-bold text-foreground">Khepri Forge</h1>
+          <h1 className="text-5xl md:text-6xl font-bold text-foreground">Alchemists Tower</h1>
           <p className="text-xl text-primary font-medium">Where worlds rise again</p>
         </div>
 

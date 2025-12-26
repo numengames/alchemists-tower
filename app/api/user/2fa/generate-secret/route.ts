@@ -13,7 +13,7 @@ export async function GET() {
 
     const secret = authenticator.generateSecret();
 
-    const otpauth = authenticator.keyuri(session.user.email, 'Khepri Forge', secret);
+    const otpauth = authenticator.keyuri(session.user.email, 'Alchemists Tower', secret);
 
     const qrCode = await QRCode.toDataURL(otpauth);
 

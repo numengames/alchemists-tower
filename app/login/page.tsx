@@ -367,7 +367,7 @@ export default function LoginPage() {
           <div className="flex justify-center mb-6">
             <KhepriLogo size={64} />
           </div>
-          <h1 className="text-3xl font-serif font-bold text-foreground mb-2">Khepri Forge</h1>
+          <h1 className="text-3xl font-serif font-bold text-foreground mb-2">Alchemists Tower</h1>
           <p className="text-foreground/60">Where worlds rise again</p>
         </div>
 
@@ -602,7 +602,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-foreground/40 mt-8">
-          © 2025 Khepri Forge. All rights reserved.
+          © 2025 Alchemists Tower. All rights reserved.
         </p>
       </div>
     </div>

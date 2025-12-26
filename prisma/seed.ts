@@ -98,7 +98,6 @@ async function main() {
   console.log('⚠️  IMPORTANT:');
   console.log('   • All users have role: USER');
   console.log('   • To make a user ADMIN, run this SQL in pgAdmin4:');
-  console.log("     UPDATE users SET role = 'ADMIN' WHERE email = 'admin1@khepriforge.com';");
   console.log('   • Users must change password on first login');
   console.log('   • Passwords are hashed with bcrypt in the database');
   console.log('');
