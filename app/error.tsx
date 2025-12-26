@@ -51,7 +51,7 @@ export default function Error({
         </div>
 
         <p className="text-center text-xs text-foreground/40 mt-8">
-          © 2025 Khepri Forge. All rights reserved.
+          © 2025 Alchemists Tower. All rights reserved.
         </p>
       </div>
     </div>

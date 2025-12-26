@@ -30,7 +30,7 @@ export function LandingPage() {
 
           <div>
             <h1 className="text-5xl md:text-6xl font-serif font-bold text-foreground mb-3">
-              Khepri Forge
+              Alchemists Tower
             </h1>
             <p className="text-xl md:text-2xl text-primary font-medium">Where worlds rise again</p>
           </div>
@@ -73,7 +73,7 @@ export function LandingPage() {
 
       {/* Footer */}
       <div className="absolute bottom-6 text-center text-xs text-foreground/40">
-        © 2025 Khepri Forge. All rights reserved.
+        © 2025 Alchemists Tower. All rights reserved.
       </div>
     </div>
   );

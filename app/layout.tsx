@@ -15,7 +15,7 @@ const firaCode = Fira_Code({
 });
 
 export const metadata: Metadata = {
-  title: 'Khepri Forge - World Management',
+  title: 'Alchemists Tower - World Management',
   description: 'Create, manage and renew virtual worlds within the Numinia ecosystem.',
 };
 

@@ -24,8 +24,8 @@ export function Sidebar() {
           <KhepriLogo size={24} />
         </div>
         <div>
-          <h1 className="text-sm font-serif font-bold text-sidebar-foreground">KHEPRI</h1>
-          <p className="text-xs text-sidebar-foreground/60">FORGE</p>
+          <h1 className="text-sm font-serif font-bold text-sidebar-foreground">ALCHEMISTS</h1>
+          <p className="text-xs text-sidebar-foreground/60">TOWER</p>
         </div>
       </Link>
 

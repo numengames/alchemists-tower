@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 
 interface TopBarProps {
   onSignOut: () => void;
+  onCreateClick?: () => void;
 }
 
 export function TopBar({ onSignOut }: TopBarProps) {
