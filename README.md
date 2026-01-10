@@ -3,7 +3,7 @@
 > World Management Backoffice for the Numinia Ecosystem
 
 <div align="center">
-  <img src="public/khepri.jpeg" alt="Khepri Logo" width="200" height="200" />
+  <img src="public/khepri.png" alt="Khepri Logo" width="200" height="200" />
   
   **The Wheel of the Athanor of the Alchemists’ Tower**
   
