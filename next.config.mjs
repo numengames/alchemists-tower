@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Standalone output: produces a self-contained .next/standalone folder
+  // (server.js + minimal node_modules) ready to drop into a tiny Docker image.
+  output: 'standalone',
   typescript: {
     ignoreBuildErrors: true,
   },

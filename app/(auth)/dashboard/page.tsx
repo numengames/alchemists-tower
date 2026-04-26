@@ -1,46 +1,49 @@
 'use client';
 
+import { useState } from 'react';
+import { useSession, signOut } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/sidebar';
 import { TopBar } from '@/components/top-bar';
 import { DashboardContent } from '@/components/dashboard-content';
 import { CreateWorldModal } from '@/components/create-world-modal';
 import { LogoutModal } from '@/components/logout-modal';
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { signOut } from 'next-auth/react';
 
 export default function DashboardPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-  const router = useRouter();
+  const [worldsRefreshTick, setWorldsRefreshTick] = useState(0);
 
-  useEffect(() => {
-    setIsMounted(true);
-    // Check if user is authenticated
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
-      router.push('/login');
-    }
-  }, [router]);
+  if (status === 'loading') return null;
+  if (status === 'unauthenticated') {
+    router.push('/login');
+    return null;
+  }
+
+  const isAdmin = session?.user?.role === 'ADMIN';
 
   const handleLogoutConfirm = async () => {
     setIsLogoutModalOpen(false);
-    localStorage.removeItem('auth_token');
     await signOut({ callbackUrl: '/login' });
   };
-
-  if (!isMounted) {
-    return null;
-  }
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden flex-col md:flex-row">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar onSignOut={() => setIsLogoutModalOpen(true)} />
-        <DashboardContent onCreateClick={() => setIsCreateModalOpen(true)} />
-        <CreateWorldModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
+        <DashboardContent
+          isAdmin={isAdmin}
+          onCreateClick={() => setIsCreateModalOpen(true)}
+          refreshTrigger={worldsRefreshTick}
+        />
+        <CreateWorldModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onWorldCreated={() => setWorldsRefreshTick((n) => n + 1)}
+        />
         <LogoutModal
           isOpen={isLogoutModalOpen}
           onConfirm={handleLogoutConfirm}

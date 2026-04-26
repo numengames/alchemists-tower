@@ -10,5 +10,9 @@ export default defineConfig({
   },
   datasource: {
     url: env('DATABASE_URL'),
+    // Pre-created shadow DB (owned by the same app role) — avoids granting
+    // CREATEDB to the app role just so `prisma migrate dev` can spawn its
+    // scratch DB. See https://pris.ly/d/migrate-shadow.
+    shadowDatabaseUrl: env('SHADOW_DATABASE_URL'),
   },
 });
