@@ -1,12 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronRight, Copy, ExternalLink, Loader2, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/toast-provider';
-import { ORG_CONFIG, SUPPORTED_ORGS } from '@/lib/world-templates';
 import { cn } from '@/lib/utils';
 
 type Step = 'scope' | 'name' | 'confirm' | 'submitting' | 'result';
@@ -17,11 +16,32 @@ interface OrgOption {
   domain: string;
 }
 
-// Static — orgs come from build-time config, no network needed.
-const ORGS: OrgOption[] = SUPPORTED_ORGS.map((slug) => ({
-  slug,
-  domain: ORG_CONFIG[slug].domain,
-}));
+// Module-level cache so the modal only fetches the orgs list once per page
+// load, even if it's opened/closed many times or React re-mounts (StrictMode).
+let orgsCache: OrgOption[] | null = null;
+let orgsPromise: Promise<OrgOption[]> | null = null;
+
+function loadOrgsOnce(): Promise<OrgOption[]> {
+  if (orgsCache) return Promise.resolve(orgsCache);
+  if (orgsPromise) return orgsPromise;
+  orgsPromise = fetch('/api/worlds/orgs')
+    .then(async (res) => {
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail ?? body.error ?? `HTTP ${res.status}`);
+      }
+      return res.json() as Promise<{ orgs: OrgOption[] }>;
+    })
+    .then((data) => {
+      orgsCache = data.orgs;
+      return data.orgs;
+    })
+    .catch((err) => {
+      orgsPromise = null;
+      throw err;
+    });
+  return orgsPromise;
+}
 
 interface ProvisioningResult {
   prUrl: string | null;
@@ -48,7 +68,7 @@ interface CreateWorldModalProps {
 const WORLD_NAME_RE = /^[a-z][a-z0-9-]{1,28}[a-z0-9]$/;
 
 const initialFormData = {
-  org: ORGS[0]?.slug ?? '',
+  org: '',
   env: 'pro' as Env,
   world: '',
   description: '',
@@ -61,10 +81,32 @@ export function CreateWorldModal({ isOpen, onClose, onWorldCreated }: CreateWorl
   const [formData, setFormData] = useState(initialFormData);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [result, setResult] = useState<ProvisioningResult | null>(null);
+  const [orgs, setOrgs] = useState<OrgOption[] | null>(orgsCache);
+  const [orgsError, setOrgsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || orgs !== null) return;
+    let cancelled = false;
+    loadOrgsOnce()
+      .then((list) => {
+        if (cancelled) return;
+        setOrgs(list);
+        setFormData((prev) =>
+          prev.org ? prev : { ...prev, org: list[0]?.slug ?? '' },
+        );
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setOrgsError(err instanceof Error ? err.message : 'Failed to load orgs');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, orgs]);
 
   const selectedOrg = useMemo(
-    () => ORGS.find((o) => o.slug === formData.org),
-    [formData.org],
+    () => orgs?.find((o) => o.slug === formData.org),
+    [orgs, formData.org],
   );
 
   const computedHostname = useMemo(() => {
@@ -197,23 +239,40 @@ export function CreateWorldModal({ isOpen, onClose, onWorldCreated }: CreateWorl
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-3">Organization</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {ORGS.map((org) => (
-                    <button
-                      key={org.slug}
-                      onClick={() => setFormData({ ...formData, org: org.slug })}
-                      className={cn(
-                        'p-3 rounded-lg border text-left transition-colors',
-                        formData.org === org.slug
-                          ? 'border-solar-gold bg-solar-gold/10 text-foreground'
-                          : 'border-sidebar-border text-foreground/70 hover:border-sidebar-border/50',
-                      )}
-                    >
-                      <div className="font-medium">{org.slug}</div>
-                      <div className="text-xs text-foreground/50 mt-1 font-mono">{org.domain}</div>
-                    </button>
-                  ))}
-                </div>
+                {orgsError ? (
+                  <p className="text-sm text-red-400">Failed to load orgs: {orgsError}</p>
+                ) : orgs === null ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    {[0, 1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="h-[60px] rounded-lg border border-sidebar-border bg-sidebar-accent/20 animate-pulse"
+                      />
+                    ))}
+                  </div>
+                ) : orgs.length === 0 ? (
+                  <p className="text-sm text-foreground/60">
+                    No organizations configured. Set <span className="font-mono">ORGS_CONFIG_JSON</span> in the server env.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {orgs.map((org) => (
+                      <button
+                        key={org.slug}
+                        onClick={() => setFormData({ ...formData, org: org.slug })}
+                        className={cn(
+                          'p-3 rounded-lg border text-left transition-colors',
+                          formData.org === org.slug
+                            ? 'border-solar-gold bg-solar-gold/10 text-foreground'
+                            : 'border-sidebar-border text-foreground/70 hover:border-sidebar-border/50',
+                        )}
+                      >
+                        <div className="font-medium">{org.slug}</div>
+                        <div className="text-xs text-foreground/50 mt-1 font-mono">{org.domain}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>

@@ -13,6 +13,7 @@ import {
 import { WorldCard } from '@/components/world-card';
 import { StatsCard } from '@/components/stats-card';
 import { DeleteWorldModal } from '@/components/delete-world-modal';
+import { AdminCodeModal } from '@/components/admin-code-modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { World, WorldStatus } from '@/lib/k8s';
@@ -56,6 +57,7 @@ export function DashboardContent({
   const [envFilter, setEnvFilter] = useState<EnvFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [worldToDelete, setWorldToDelete] = useState<World | null>(null);
+  const [worldForAdminCode, setWorldForAdminCode] = useState<World | null>(null);
   const [expandedOrgs, setExpandedOrgs] = useState<Set<string>>(new Set());
 
   const WORLDS_PER_ORG_INITIAL = 6;
@@ -165,12 +167,14 @@ export function DashboardContent({
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search worlds, orgs, URLs…"
                 className="pl-9 bg-sidebar-accent/30 border-sidebar-border"
+                suppressHydrationWarning
               />
             </div>
             <select
               value={orgFilter}
               onChange={(e) => setOrgFilter(e.target.value)}
               className="h-9 px-3 rounded-md border border-sidebar-border bg-sidebar-accent/30 text-sm text-foreground"
+              suppressHydrationWarning
             >
               <option value="all">All orgs</option>
               {orgs.map((o) => (
@@ -240,6 +244,12 @@ export function DashboardContent({
           onSuccess={() => refresh()}
         />
 
+        <AdminCodeModal
+          isOpen={worldForAdminCode !== null}
+          world={worldForAdminCode}
+          onClose={() => setWorldForAdminCode(null)}
+        />
+
         {!loading && !error && groupedByOrg.length > 0 && (
           <div className="space-y-8">
             {groupedByOrg.map(([org, list]) => {
@@ -265,6 +275,7 @@ export function DashboardContent({
                         world={w}
                         isAdmin={isAdmin}
                         onDelete={(world) => setWorldToDelete(world)}
+                        onShowAdminCode={(world) => setWorldForAdminCode(world)}
                       />
                     ))}
                   </div>

@@ -30,8 +30,7 @@ function assetsPublicBase(): string {
  * Loaded from the `ORGS_CONFIG_JSON` env var (a JSON array of OrgConfig).
  * Cached on first read so module consumers see a stable identity. If parsing
  * fails or the env var is missing, the map is empty — every org input is
- * rejected by `isValidOrg`, and SUPPORTED_ORGS is empty so the form shows
- * "no orgs configured".
+ * rejected by `isValidOrg`, and getSupportedOrgs() returns [].
  */
 let _orgConfigCache: Record<string, OrgConfig> | null = null;
 
@@ -93,21 +92,10 @@ export const ORG_CONFIG: Record<string, OrgConfig> = new Proxy(
   },
 ) as Record<string, OrgConfig>;
 
-/** List of supported org slugs (parsed lazily). */
+/** List of supported org slugs (parsed lazily from env). */
 export function getSupportedOrgs(): string[] {
   return Object.keys(loadOrgConfig());
 }
-
-// Eager-eval helper kept for back-compat with consumers that imported the
-// constant. Re-evaluated on every access via a getter.
-export const SUPPORTED_ORGS: readonly string[] = new Proxy([] as string[], {
-  get(_t, key) {
-    const list = getSupportedOrgs();
-    if (key === 'length') return list.length;
-    if (typeof key === 'string' && /^\d+$/.test(key)) return list[Number(key)];
-    return Reflect.get(list, key);
-  },
-}) as readonly string[];
 
 const WORLD_NAME_RE = /^[a-z][a-z0-9-]{1,28}[a-z0-9]$/;
 
@@ -205,7 +193,7 @@ function requireOrg(org: string): OrgConfig {
   const cfg = ORG_CONFIG[org];
   if (!cfg) {
     throw new Error(
-      `Unknown organization: ${org}. Supported: ${SUPPORTED_ORGS.join(', ')}`,
+      `Unknown organization: ${org}. Supported: ${getSupportedOrgs().join(', ')}`,
     );
   }
   return cfg;
@@ -299,7 +287,7 @@ export function generateWorldFiles(input: GenerateInput): GeneratedWorld {
 function validateInput(input: GenerateInput) {
   if (!isValidOrg(input.org)) {
     throw new Error(
-      `Unsupported org "${input.org}". Supported: ${SUPPORTED_ORGS.join(', ')}`,
+      `Unsupported org "${input.org}". Supported: ${getSupportedOrgs().join(', ')}`,
     );
   }
   if (!isValidWorldName(input.world)) {

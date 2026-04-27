@@ -1,6 +1,6 @@
 'use client';
 
-import { ExternalLink, Trash2, Activity, Moon, AlertTriangle, AlertCircle, RefreshCw, HelpCircle } from 'lucide-react';
+import { ExternalLink, KeyRound, Trash2, Activity, Moon, AlertTriangle, AlertCircle, RefreshCw, HelpCircle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { World, WorldStatus } from '@/lib/k8s';
 import { cn } from '@/lib/utils';
@@ -9,6 +9,7 @@ interface WorldCardProps {
   world: World;
   isAdmin: boolean;
   onDelete?: (world: World) => void;
+  onShowAdminCode?: (world: World) => void;
 }
 
 const STATUS_META: Record<
@@ -54,7 +55,7 @@ const STATUS_META: Record<
   },
 };
 
-export function WorldCard({ world, isAdmin, onDelete }: WorldCardProps) {
+export function WorldCard({ world, isAdmin, onDelete, onShowAdminCode }: WorldCardProps) {
   const meta = STATUS_META[world.status];
   const StatusIcon = meta.icon;
 
@@ -117,6 +118,17 @@ export function WorldCard({ world, isAdmin, onDelete }: WorldCardProps) {
           <span className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-1.5 text-xs rounded-md border border-sidebar-border/50 text-foreground/40">
             No URL
           </span>
+        )}
+
+        {isAdmin && onShowAdminCode && (
+          <button
+            onClick={() => onShowAdminCode(world)}
+            className="inline-flex items-center justify-center px-2.5 py-1.5 rounded-md text-foreground/60 hover:text-solar-gold hover:bg-solar-gold/10 transition-colors"
+            aria-label={`Show admin code for ${world.worldName}`}
+            title="Show admin code"
+          >
+            <KeyRound className="w-3.5 h-3.5" strokeWidth={1.75} />
+          </button>
         )}
 
         {isAdmin && onDelete && (

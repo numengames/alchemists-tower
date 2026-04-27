@@ -36,15 +36,41 @@ import {
   deriveNamespace,
   deriveWorldRepoPaths,
   generateWorldFiles,
+  getSupportedOrgs,
   isValidOrg,
   isValidWorldName,
-  SUPPORTED_ORGS,
 } from '@/lib/world-templates';
 import {
   CHART_VERSION,
   type SecretKey,
 } from '@/lib/world-templates-constants';
 import { Environment, WorldStatus } from '@/generated/prisma/enums';
+
+/**
+ * Build the per-world `ASSETS_S3_URI` value. The hyperfy2 runtime parses it
+ * as `s3://USER:PASS@HOST/PATH` so it can authenticate to S3 directly. When
+ * the auth env vars are missing, falls back to a plain `s3://bucket/path`.
+ */
+function buildAssetsS3Uri(args: {
+  org: string;
+  world: string;
+  envSegment: string;
+  rootPrefix: string;
+}): string {
+  const accessKeyId = process.env.HYPERFY_S3_ACCESS_KEY_ID ?? '';
+  const secretAccessKey = process.env.HYPERFY_S3_SECRET_ACCESS_KEY ?? '';
+  const host = process.env.HYPERFY_S3_BUCKET_HOST ?? '';
+  const path = `/${args.rootPrefix}/${args.org}/${args.world}/${args.envSegment}/assets`;
+
+  if (host && accessKeyId && secretAccessKey) {
+    const auth = `${encodeURIComponent(accessKeyId)}:${encodeURIComponent(secretAccessKey)}@`;
+    return `s3://${auth}${host}${path}`;
+  }
+  // Fallback: plain s3:// URI (no auth). The pod will need IRSA or another
+  // credential source to access the bucket.
+  const bucket = process.env.ASSETS_BUCKET ?? '';
+  return `s3://${bucket}${path}`;
+}
 
 export async function GET(request: Request) {
   return withAuth(request, async () => {
@@ -92,7 +118,7 @@ const secretOverridesSchema = z
 
 const createWorldInputSchema = z.object({
   org: z.string().refine((v) => isValidOrg(v), {
-    message: `Unsupported org. Supported: ${SUPPORTED_ORGS.join(', ')}`,
+    message: `Unsupported org. Supported: ${getSupportedOrgs().join(', ')}`,
   }),
   world: z.string().refine(isValidWorldName, {
     message: 'World name must match ^[a-z][a-z0-9-]{1,28}[a-z0-9]$',
@@ -167,11 +193,16 @@ export async function POST(request: Request) {
     }
 
     const dbSchema = deriveDbSchema(input.org, input.world, input.env);
-    const assetsBucket = process.env.ASSETS_BUCKET ?? '';
     const assetsRootPrefix = process.env.ASSETS_ROOT_PREFIX ?? 'hyperfy-spaces';
+    const envSegment = input.env === 'pre' ? 'dev' : 'latest';
     const systemOverrides: Partial<Record<SecretKey, string>> = {
       DB_SCHEMA: dbSchema,
-      ASSETS_S3_URI: `s3://${assetsBucket}/${assetsRootPrefix}/${input.org}/${input.world}/`,
+      ASSETS_S3_URI: buildAssetsS3Uri({
+        org: input.org,
+        world: input.world,
+        envSegment,
+        rootPrefix: assetsRootPrefix,
+      }),
     };
     const payload = composeSecretPayload(
       templateDefaults.values,
@@ -424,7 +455,7 @@ export async function POST(request: Request) {
 
 const deleteWorldSchema = z.object({
   org: z.string().refine(isValidOrg, {
-    message: `Unsupported org. Supported: ${SUPPORTED_ORGS.join(', ')}`,
+    message: `Unsupported org. Supported: ${getSupportedOrgs().join(', ')}`,
   }),
   world: z.string().refine(isValidWorldName, {
     message: 'World name must match ^[a-z][a-z0-9-]{1,28}[a-z0-9]$',
