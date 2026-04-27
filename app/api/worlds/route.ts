@@ -75,7 +75,55 @@ function buildAssetsS3Uri(args: {
 export async function GET(request: Request) {
   return withAuth(request, async () => {
     try {
-      const worlds = await listWorlds();
+      const [k8sWorlds, dbWorlds] = await Promise.all([
+        listWorlds(),
+        prisma.world.findMany({
+          where: {
+            status: { in: [WorldStatus.PROVISIONING, WorldStatus.FAILED] },
+          },
+          select: {
+            organization: true,
+            slug: true,
+            environment: true,
+            status: true,
+            helmrelease_name: true,
+            k8s_namespace: true,
+            hostname: true,
+            github_pr_url: true,
+            failure_step: true,
+            failure_reason: true,
+            created_at: true,
+          },
+        }),
+      ]);
+
+      // K8s worlds are the live source of truth; index them so we don't
+      // double-list any DB row that already has a corresponding HelmRelease.
+      const liveKey = (org: string, slug: string, env: string) => `${org}/${slug}/${env}`;
+      const liveSet = new Set(
+        k8sWorlds.map((w) => liveKey(w.organization, w.worldName, w.environment)),
+      );
+
+      const dbOnly = dbWorlds
+        .filter((d) => !liveSet.has(liveKey(d.organization, d.slug, d.environment.toLowerCase())))
+        .map((d) => ({
+          helmReleaseName: d.helmrelease_name,
+          worldName: d.slug,
+          organization: d.organization,
+          environment: d.environment.toLowerCase() as 'pre' | 'pro',
+          namespace: d.k8s_namespace,
+          url: null,
+          status: d.status === WorldStatus.FAILED ? ('FAILED' as const) : ('PROVISIONING' as const),
+          statusReason: d.failure_reason ?? undefined,
+          source: 'db' as const,
+          failureStep: d.failure_step,
+          failureReason: d.failure_reason,
+          prUrl: d.github_pr_url,
+          createdAt: d.created_at.toISOString(),
+        }));
+
+      const annotated = k8sWorlds.map((w) => ({ ...w, source: 'k8s' as const }));
+      const worlds = [...dbOnly, ...annotated];
       return NextResponse.json({ worlds });
     } catch (error) {
       console.error('[api/worlds] failed to list worlds:', error);
@@ -163,11 +211,20 @@ export async function POST(request: Request) {
 
     const existing = await prisma.world.findFirst({
       where: { organization: input.org, slug: input.world, environment: dbEnv },
-      select: { id: true },
+      select: { id: true, status: true },
     });
     if (existing) {
+      const hint =
+        existing.status === WorldStatus.FAILED
+          ? 'A previous attempt failed. Purge it from the dashboard before retrying with the same name.'
+          : undefined;
       return NextResponse.json(
-        { error: `World ${input.org}/${input.world} (${input.env}) already exists` },
+        {
+          error: `World ${input.org}/${input.world} (${input.env}) already exists`,
+          status: existing.status,
+          worldId: existing.id,
+          ...(hint ? { hint } : {}),
+        },
         { status: 409 },
       );
     }
@@ -181,18 +238,58 @@ export async function POST(request: Request) {
       publicMaxUploadSize: input.publicMaxUploadSize,
     });
 
+    const dbSchema = deriveDbSchema(input.org, input.world, input.env);
+    const helmReleaseName = deriveHelmReleaseName(input.world, input.env);
+    const namespace = deriveNamespace(input.org, input.env);
+    const hostname = deriveHostname(input.org, input.world, input.env);
+    const assetsBaseUrl = deriveAssetsBaseUrl(input.org, input.world, input.env);
+
+    // Persist the row FIRST so partial failures leave a tracked, purgeable
+    // entry in the dashboard. status stays PROVISIONING throughout the
+    // happy path; on any error we flip it to FAILED with the failing step.
+    const world = await prisma.world.create({
+      data: {
+        name: input.world,
+        slug: input.world,
+        organization: input.org,
+        environment: dbEnv,
+        status: WorldStatus.PROVISIONING,
+        helmrelease_name: helmReleaseName,
+        k8s_namespace: namespace,
+        hostname,
+        template_version: CHART_VERSION,
+        description: input.description,
+        owner_id: session.user.id,
+      },
+      select: { id: true },
+    });
+
+    const markFailed = async (step: string, err: unknown) => {
+      const reason = err instanceof Error ? err.message : String(err);
+      await prisma.world
+        .update({
+          where: { id: world.id },
+          data: {
+            status: WorldStatus.FAILED,
+            failure_step: step,
+            failure_reason: reason.slice(0, 500),
+          },
+        })
+        .catch(() => undefined);
+    };
+
     let templateDefaults;
     try {
       templateDefaults = await getTemplateDefaults();
     } catch (error) {
       console.error('[api/worlds POST] reading template defaults failed:', error);
+      await markFailed('template_defaults_read', error);
       return NextResponse.json(
-        { error: 'Failed to read template defaults' },
+        { error: 'Failed to read template defaults', worldId: world.id },
         { status: 502 },
       );
     }
 
-    const dbSchema = deriveDbSchema(input.org, input.world, input.env);
     const assetsRootPrefix = process.env.ASSETS_ROOT_PREFIX ?? 'hyperfy-spaces';
     const envSegment = input.env === 'pre' ? 'dev' : 'latest';
     const systemOverrides: Partial<Record<SecretKey, string>> = {
@@ -215,18 +312,21 @@ export async function POST(request: Request) {
     } catch (error) {
       if (error instanceof WorldDbPermissionError) {
         console.error('[api/worlds POST] schema permission denied:', error.message);
+        await markFailed('schema_create', error);
         return NextResponse.json(
           {
             error: 'Database role lacks CREATE on the worlds database',
             hint: 'Grant CREATE on the worlds database to the backoffice role and retry',
+            worldId: world.id,
           },
           { status: 412 },
         );
       }
       console.error('[api/worlds POST] schema create failed:', error);
+      await markFailed('schema_create', error);
       const message = error instanceof Error ? error.message : 'Unknown error';
       return NextResponse.json(
-        { error: 'Failed to create database schema', detail: message },
+        { error: 'Failed to create database schema', detail: message, worldId: world.id },
         { status: 502 },
       );
     }
@@ -241,18 +341,21 @@ export async function POST(request: Request) {
     } catch (error) {
       if (error instanceof S3TemplateMissingError) {
         console.error('[api/worlds POST] S3 template missing');
+        await markFailed('assets_copy', error);
         return NextResponse.json(
           {
             error: 'Default S3 template is empty',
             hint: 'Populate the default-assets template prefix, then retry',
+            worldId: world.id,
           },
           { status: 412 },
         );
       }
       console.error('[api/worlds POST] S3 copy failed:', error);
+      await markFailed('assets_copy', error);
       const message = error instanceof Error ? error.message : 'Unknown error';
       return NextResponse.json(
-        { error: 'Failed to copy default assets', detail: message },
+        { error: 'Failed to copy default assets', detail: message, worldId: world.id },
         { status: 502 },
       );
     }
@@ -268,9 +371,10 @@ export async function POST(request: Request) {
       secretArn = secretResult.arn;
     } catch (error) {
       console.error('[api/worlds POST] secret create failed:', error);
+      await markFailed('secret_create', error);
       const message = error instanceof Error ? error.message : 'Unknown error';
       return NextResponse.json(
-        { error: 'Failed to create secret', detail: message },
+        { error: 'Failed to create secret', detail: message, worldId: world.id },
         { status: 502 },
       );
     }
@@ -287,6 +391,7 @@ export async function POST(request: Request) {
         `[api/worlds POST] DNS upsert failed (orphan secret: ${secretArn ?? secretId}):`,
         error,
       );
+      await markFailed('dns_upsert', error);
       const message = error instanceof Error ? error.message : 'Unknown error';
       const status = error instanceof GoDaddyAuthError ? 412 : 502;
       const hint =
@@ -297,7 +402,7 @@ export async function POST(request: Request) {
         {
           error: 'Failed to upsert DNS record',
           detail: message,
-          orphanedSecret: secretId,
+          worldId: world.id,
           ...(hint ? { hint } : {}),
         },
         { status },
@@ -326,42 +431,27 @@ export async function POST(request: Request) {
         }):`,
         error,
       );
+      await markFailed('git_changeset', error);
       const message = error instanceof Error ? error.message : 'Unknown error';
       return NextResponse.json(
         {
           error: 'Failed to push manifests',
           detail: message,
-          orphanedSecret: secretId,
-          orphanedDns: dnsResult.skipped
-            ? null
-            : `${dnsResult.recordName}.${dnsResult.domain}`,
+          worldId: world.id,
         },
         { status: 502 },
       );
     }
 
-    const helmReleaseName = deriveHelmReleaseName(input.world, input.env);
-    const namespace = deriveNamespace(input.org, input.env);
-    const hostname = deriveHostname(input.org, input.world, input.env);
-    const assetsBaseUrl = deriveAssetsBaseUrl(input.org, input.world, input.env);
-
-    let world;
+    let updatedWorld;
     try {
-      world = await prisma.world.create({
+      updatedWorld = await prisma.world.update({
+        where: { id: world.id },
         data: {
-          name: input.world,
-          slug: input.world,
-          organization: input.org,
-          environment: dbEnv,
-          status: WorldStatus.PROVISIONING,
-          helmrelease_name: helmReleaseName,
-          k8s_namespace: namespace,
-          hostname,
-          template_version: CHART_VERSION,
           github_pr_url: changeset.prUrl,
           github_pr_number: changeset.prNumber,
-          description: input.description,
-          owner_id: session.user.id,
+          failure_step: null,
+          failure_reason: null,
         },
         select: {
           id: true,
@@ -379,16 +469,16 @@ export async function POST(request: Request) {
       });
     } catch (error) {
       console.error(
-        `[api/worlds POST] DB persist failed (orphan PR: ${changeset.prUrl ?? changeset.commitSha}, secret: ${secretId}):`,
+        `[api/worlds POST] DB update failed (orphan PR: ${changeset.prUrl ?? changeset.commitSha}, secret: ${secretId}):`,
         error,
       );
+      await markFailed('db_finalize', error);
       const message = error instanceof Error ? error.message : 'Unknown error';
       return NextResponse.json(
         {
-          error: 'Provisioning succeeded externally but DB write failed',
+          error: 'Provisioning succeeded externally but DB update failed',
           detail: message,
-          orphanedSecret: secretId,
-          orphanedPr: changeset.prUrl ?? changeset.commitSha,
+          worldId: world.id,
         },
         { status: 500 },
       );
@@ -424,7 +514,7 @@ export async function POST(request: Request) {
     const adminCode = payload.ADMIN_CODE;
     return NextResponse.json(
       {
-        world,
+        world: updatedWorld,
         provisioning: {
           mode: changeset.mode,
           pr_url: changeset.prUrl ?? null,
@@ -484,7 +574,7 @@ export async function DELETE(request: Request) {
     const dbEnv: Environment = env === 'pre' ? Environment.PRE : Environment.PRO;
     const dbWorld = await prisma.world.findFirst({
       where: { organization: org, slug: world, environment: dbEnv },
-      select: { id: true, status: true },
+      select: { id: true, status: true, github_pr_url: true },
     });
 
     if (dbWorld) {
@@ -494,43 +584,55 @@ export async function DELETE(request: Request) {
       });
     }
 
+    // Skip the git step entirely when purging a world that never made it to
+    // git (failed before pushing a PR, or no DB row at all). Otherwise the
+    // delete-changeset would either error or open an empty PR.
+    const isPurgeOnly =
+      dbWorld?.status === WorldStatus.FAILED && !dbWorld.github_pr_url;
     const paths = deriveWorldRepoPaths(org, world, env);
     const mode: 'pr' | 'direct' =
       process.env.GITHUB_BRANCH_MODE === 'direct' ? 'direct' : 'pr';
 
     let changeset: ChangesetResult;
-    try {
-      changeset = await applyDeleteWorldChangeset({
-        org,
-        world,
-        env,
-        pathsToDelete: [
-          paths.worldFiles.configMap,
-          paths.worldFiles.helmRelease,
-          paths.worldFiles.kustomization,
-        ],
-        parentKustomization: {
-          path: paths.parentKustomization,
-          removeEntry: paths.parentEntry,
-        },
-        commitMessage: `chore(world): remove ${org}/${world} (${env})`,
-        mode,
-      });
-    } catch (error) {
-      console.error('[api/worlds DELETE] git changeset failed:', error);
-      if (dbWorld) {
-        await prisma.world
-          .update({
-            where: { id: dbWorld.id },
-            data: { status: WorldStatus.ACTIVE },
-          })
-          .catch(() => undefined);
+    if (isPurgeOnly) {
+      changeset = {
+        mode: 'pr',
+        branch: '(skipped — never pushed)',
+      };
+    } else {
+      try {
+        changeset = await applyDeleteWorldChangeset({
+          org,
+          world,
+          env,
+          pathsToDelete: [
+            paths.worldFiles.configMap,
+            paths.worldFiles.helmRelease,
+            paths.worldFiles.kustomization,
+          ],
+          parentKustomization: {
+            path: paths.parentKustomization,
+            removeEntry: paths.parentEntry,
+          },
+          commitMessage: `chore(world): remove ${org}/${world} (${env})`,
+          mode,
+        });
+      } catch (error) {
+        console.error('[api/worlds DELETE] git changeset failed:', error);
+        if (dbWorld) {
+          await prisma.world
+            .update({
+              where: { id: dbWorld.id },
+              data: { status: WorldStatus.ACTIVE },
+            })
+            .catch(() => undefined);
+        }
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return NextResponse.json(
+          { error: 'Failed to push delete changes', detail: message },
+          { status: 502 },
+        );
       }
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return NextResponse.json(
-        { error: 'Failed to push delete changes', detail: message },
-        { status: 502 },
-      );
     }
 
     const secretId = deriveAwsSecretName(org, world, env);

@@ -35,8 +35,10 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: 'RUNNING', label: 'Running' },
   { value: 'IDLE', label: 'Idle' },
   { value: 'UPDATING', label: 'Updating' },
+  { value: 'PROVISIONING', label: 'Provisioning' },
   { value: 'DEGRADED', label: 'Degraded' },
   { value: 'ERROR', label: 'Error' },
+  { value: 'FAILED', label: 'Failed' },
 ];
 
 const ENV_FILTERS: { value: EnvFilter; label: string }[] = [
@@ -106,7 +108,9 @@ export function DashboardContent({
       total: worlds.length,
       running: worlds.filter((w) => w.status === 'RUNNING').length,
       idle: worlds.filter((w) => w.status === 'IDLE').length,
-      problems: worlds.filter((w) => w.status === 'ERROR' || w.status === 'DEGRADED').length,
+      problems: worlds.filter(
+        (w) => w.status === 'ERROR' || w.status === 'DEGRADED' || w.status === 'FAILED',
+      ).length,
     };
   }, [worlds]);
 

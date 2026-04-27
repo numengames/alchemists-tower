@@ -20,7 +20,15 @@ const SYSTEM_NAMESPACES = new Set([
   'external-dns',
 ]);
 
-export type WorldStatus = 'RUNNING' | 'IDLE' | 'DEGRADED' | 'ERROR' | 'UPDATING' | 'UNKNOWN';
+export type WorldStatus =
+  | 'RUNNING'
+  | 'IDLE'
+  | 'DEGRADED'
+  | 'ERROR'
+  | 'UPDATING'
+  | 'UNKNOWN'
+  | 'PROVISIONING'
+  | 'FAILED';
 
 export type Environment = 'pre' | 'pro';
 
@@ -36,6 +44,11 @@ export interface World {
   chartVersion?: string;
   lastAppliedRevision?: string;
   createdAt?: string;
+  /** Set when this row is DB-only (PROVISIONING / FAILED) — not in cluster yet. */
+  source?: 'k8s' | 'db';
+  failureStep?: string | null;
+  failureReason?: string | null;
+  prUrl?: string | null;
 }
 
 let kcInstance: KubeConfig | null = null;

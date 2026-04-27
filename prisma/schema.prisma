@@ -109,6 +109,9 @@ model World {
   github_pr_url     String?
   github_pr_number  Int?
 
+  failure_step      String?
+  failure_reason    String?
+
   description       String       @default("")
 
   owner_id          String?
