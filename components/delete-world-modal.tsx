@@ -23,6 +23,11 @@ interface DeleteResult {
   dnsSkipped: boolean;
   dnsDeleted: boolean;
   dnsRecord: string | null;
+  assetsDeleted: boolean;
+  assetsDeletedCount: number;
+  assetsPrefix: string | null;
+  schemaDropped: boolean;
+  dbSchema: string;
   hadDbRow: boolean;
 }
 
@@ -71,6 +76,11 @@ export function DeleteWorldModal({ isOpen, world, onClose, onSuccess }: DeleteWo
         dns_skipped: boolean;
         dns_deleted: boolean;
         dns_record: string | null;
+        assets_deleted: boolean;
+        assets_deleted_count: number;
+        assets_prefix: string | null;
+        schema_dropped: boolean;
+        db_schema: string;
         had_db_row: boolean;
       };
       setResult({
@@ -82,6 +92,11 @@ export function DeleteWorldModal({ isOpen, world, onClose, onSuccess }: DeleteWo
         dnsSkipped: r.dns_skipped,
         dnsDeleted: r.dns_deleted,
         dnsRecord: r.dns_record,
+        assetsDeleted: r.assets_deleted,
+        assetsDeletedCount: r.assets_deleted_count,
+        assetsPrefix: r.assets_prefix,
+        schemaDropped: r.schema_dropped,
+        dbSchema: r.db_schema,
         hadDbRow: r.had_db_row,
       });
       showToast(`World ${world.worldName} deletion started`, 'success');
@@ -121,6 +136,15 @@ export function DeleteWorldModal({ isOpen, world, onClose, onSuccess }: DeleteWo
                 <ul className="text-xs text-foreground/60 mb-4 list-disc pl-5 space-y-1">
                   <li>Open a PR on the GitOps repo removing the world&apos;s YAMLs.</li>
                   <li>Delete the AWS secret with a 7-day recovery window.</li>
+                  <li>Remove the GoDaddy CNAME (skipped for wildcard orgs).</li>
+                  <li>
+                    <span className="text-red-400 font-medium">Permanently delete</span> all
+                    S3 assets under the world&apos;s prefix.
+                  </li>
+                  <li>
+                    <span className="text-red-400 font-medium">Drop the Postgres schema</span>{' '}
+                    (CASCADE) — every table and row the world ever wrote will be lost.
+                  </li>
                   <li>Drop the world&apos;s row from the backoffice DB (if any).</li>
                   <li>
                     Once the PR is merged, Flux will prune the live cluster resources
@@ -218,6 +242,29 @@ export function DeleteWorldModal({ isOpen, world, onClose, onSuccess }: DeleteWo
                         : result.dnsDeleted
                           ? (result.dnsRecord ?? 'removed')
                           : 'failed — check logs'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-foreground/70">S3 assets:</span>
+                    <span
+                      className={
+                        result.assetsDeleted ? 'text-emerald-400' : 'text-amber-400'
+                      }
+                    >
+                      {result.assetsDeleted
+                        ? `${result.assetsDeletedCount} deleted`
+                        : 'failed — check logs'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-foreground/70">DB schema:</span>
+                    <span
+                      className={
+                        result.schemaDropped ? 'text-emerald-400 font-mono' : 'text-amber-400'
+                      }
+                      title={result.dbSchema}
+                    >
+                      {result.schemaDropped ? 'dropped' : 'failed — check logs'}
                     </span>
                   </div>
                 </div>

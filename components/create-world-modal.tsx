@@ -116,11 +116,6 @@ export function CreateWorldModal({ isOpen, onClose, onWorldCreated }: CreateWorl
       : `${formData.world}.${selectedOrg.domain}`;
   }, [selectedOrg, formData.world, formData.env]);
 
-  const computedSecretId = useMemo(() => {
-    if (!formData.org || !formData.world) return null;
-    return `hyperfy2-${formData.org}-${formData.world}-${formData.env}`;
-  }, [formData.org, formData.world, formData.env]);
-
   const nameValid = WORLD_NAME_RE.test(formData.world);
 
   if (!isOpen) return null;
@@ -362,12 +357,10 @@ export function CreateWorldModal({ isOpen, onClose, onWorldCreated }: CreateWorl
                 <Row label="World" value={formData.world} mono />
                 <Row label="Environment" value={formData.env.toUpperCase()} />
                 <Row label="Hostname" value={computedHostname ?? '—'} mono />
-                <Row label="AWS Secret" value={computedSecretId ?? '—'} mono />
                 <Row label="AI features" value={formData.includeAi ? 'enabled' : 'disabled'} />
               </div>
               <p className="text-xs text-foreground/60">
-                Creates an AWS secret, opens a PR on the GitOps repo, and registers the world.
-                Flux will reconcile within a few minutes after the PR is merged.
+                The world will be available at the hostname above in a few minutes.
               </p>
               {submitError && (
                 <div className="text-xs text-red-500 border border-red-500/30 bg-red-500/10 rounded px-3 py-2">

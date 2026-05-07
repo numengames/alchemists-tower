@@ -86,6 +86,14 @@ export function WorldCard({ world, isAdmin, onDelete, onShowAdminCode }: WorldCa
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-sidebar-accent/50 text-foreground/70 uppercase">
               {world.environment}
             </span>
+            {world.source === 'k8s' && world.managed === false && (
+              <span
+                className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 uppercase"
+                title="Created manually before the backoffice — managed externally"
+              >
+                Legacy
+              </span>
+            )}
           </div>
           <p className="text-xs text-foreground/55 truncate">{world.organization}</p>
         </div>
@@ -154,7 +162,7 @@ export function WorldCard({ world, isAdmin, onDelete, onShowAdminCode }: WorldCa
           </span>
         )}
 
-        {isAdmin && onShowAdminCode && world.source !== 'db' && (
+        {isAdmin && onShowAdminCode && world.source !== 'db' && world.managed !== false && (
           <button
             onClick={() => onShowAdminCode(world)}
             className="inline-flex items-center justify-center px-2.5 py-1.5 rounded-md text-foreground/60 hover:text-solar-gold hover:bg-solar-gold/10 transition-colors"
@@ -165,7 +173,7 @@ export function WorldCard({ world, isAdmin, onDelete, onShowAdminCode }: WorldCa
           </button>
         )}
 
-        {isAdmin && onDelete && (
+        {isAdmin && onDelete && world.managed !== false && (
           <button
             onClick={() => onDelete(world)}
             className="inline-flex items-center justify-center px-2.5 py-1.5 rounded-md text-foreground/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"

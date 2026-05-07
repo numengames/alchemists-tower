@@ -10,6 +10,7 @@
  */
 import {
   CopyObjectCommand,
+  DeleteObjectsCommand,
   ListObjectsV2Command,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -128,4 +129,57 @@ export async function copyDefaultAssets(args: {
   await Promise.all(workers);
 
   return { copied, envSegment, destPrefix };
+}
+
+export interface DeleteWorldAssetsResult {
+  deleted: number;
+  envSegment: 'dev' | 'latest';
+  prefix: string;
+}
+
+/**
+ * Recursively delete every object under the world's env-segmented prefix.
+ * Returns silently when the prefix is already empty. Tolerates partial
+ * batch failures by surfacing the first error encountered.
+ */
+export async function deleteWorldAssets(args: {
+  org: string;
+  world: string;
+  env: 'pre' | 'pro';
+}): Promise<DeleteWorldAssetsResult> {
+  const { org, world, env } = args;
+  const bucket = getBucket();
+  const envSegment = envToAssetsSegment(env);
+  const prefix = `${ROOT_PREFIX}/${org}/${world}/${envSegment}/`;
+
+  const keys = await listAllKeys(prefix);
+  if (keys.length === 0) {
+    return { deleted: 0, envSegment, prefix };
+  }
+
+  const client = getClient();
+  // S3 DeleteObjects accepts up to 1000 keys per call.
+  const BATCH = 1000;
+  let deleted = 0;
+  for (let i = 0; i < keys.length; i += BATCH) {
+    const chunk = keys.slice(i, i + BATCH);
+    const out = await client.send(
+      new DeleteObjectsCommand({
+        Bucket: bucket,
+        Delete: {
+          Objects: chunk.map((Key) => ({ Key })),
+          Quiet: true,
+        },
+      }),
+    );
+    if (out.Errors && out.Errors.length > 0) {
+      const first = out.Errors[0];
+      throw new Error(
+        `S3 delete reported ${out.Errors.length} error(s); first: ${first.Code} ${first.Message ?? ''} on ${first.Key ?? '?'}`,
+      );
+    }
+    deleted += chunk.length;
+  }
+
+  return { deleted, envSegment, prefix };
 }

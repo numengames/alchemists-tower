@@ -14,6 +14,7 @@
 import { Client } from 'pg';
 
 const SCHEMA_NAME_RE = /^[a-z][a-z0-9-]{1,62}$/;
+const RUNTIME_USER_RE = /^[a-z_][a-z0-9_]{0,62}$/i;
 
 export class WorldDbPermissionError extends Error {
   constructor(message: string) {
@@ -44,11 +45,17 @@ export async function createWorldSchema(schemaName: string): Promise<void> {
     throw new Error('DATABASE_URL (or WORLDS_DATABASE_URL) is not set');
   }
 
+  const runtimeUser = process.env.WORLDS_DB_RUNTIME_USER ?? 'app_user';
+  if (!RUNTIME_USER_RE.test(runtimeUser)) {
+    throw new Error(`Invalid WORLDS_DB_RUNTIME_USER: ${runtimeUser}`);
+  }
+
   const client = new Client({ connectionString });
   await client.connect();
   try {
-    // Identifier is validated upstream; double-quoting handles permitted hyphens.
+    // Identifiers validated upstream; double-quoting handles hyphens in names.
     await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+    await client.query(`GRANT USAGE, CREATE ON SCHEMA "${schemaName}" TO ${runtimeUser}`);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (/permission denied|must be owner|insufficient privilege/i.test(message)) {
@@ -57,6 +64,32 @@ export async function createWorldSchema(schemaName: string): Promise<void> {
       );
     }
     throw err;
+  } finally {
+    await client.end();
+  }
+}
+
+/**
+ * Drop the world's schema and ALL its data (tables, sequences, etc) via
+ * CASCADE. The connecting role must be the schema owner (or superuser).
+ * Silently no-ops if the schema doesn't exist.
+ */
+export async function dropWorldSchema(schemaName: string): Promise<void> {
+  if (!SCHEMA_NAME_RE.test(schemaName)) {
+    throw new Error(`Invalid schema name: ${schemaName}`);
+  }
+  const explicit = process.env.WORLDS_DATABASE_URL;
+  const backofficeUrl = process.env.DATABASE_URL;
+  const connectionString =
+    explicit ?? (backofficeUrl ? deriveWorldsDatabaseUrl(backofficeUrl) : '');
+  if (!connectionString) {
+    throw new Error('DATABASE_URL (or WORLDS_DATABASE_URL) is not set');
+  }
+
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    await client.query(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
   } finally {
     await client.end();
   }

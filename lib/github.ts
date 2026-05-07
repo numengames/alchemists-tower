@@ -274,53 +274,6 @@ async function readFileAtRef(
   }
 }
 
-async function writeFile(
-  octokit: Octokit,
-  cfg: RepoConfig,
-  args: {
-    path: string;
-    content: string;
-    message: string;
-    branch: string;
-    expectedSha?: string;
-  },
-): Promise<string> {
-  try {
-    const { data } = await octokit.repos.createOrUpdateFileContents({
-      owner: cfg.owner,
-      repo: cfg.repo,
-      path: args.path,
-      message: args.message,
-      content: Buffer.from(args.content, 'utf8').toString('base64'),
-      branch: args.branch,
-      sha: args.expectedSha,
-    });
-    return data.commit.sha ?? '';
-  } catch (err) {
-    throw wrapError(`write file '${args.path}'`, err);
-  }
-}
-
-async function deleteFile(
-  octokit: Octokit,
-  cfg: RepoConfig,
-  args: { path: string; message: string; branch: string; sha: string },
-): Promise<string> {
-  try {
-    const { data } = await octokit.repos.deleteFile({
-      owner: cfg.owner,
-      repo: cfg.repo,
-      path: args.path,
-      message: args.message,
-      branch: args.branch,
-      sha: args.sha,
-    });
-    return data.commit.sha ?? '';
-  } catch (err) {
-    throw wrapError(`delete file '${args.path}'`, err);
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Internal: high-level changeset application
 // ---------------------------------------------------------------------------
@@ -341,6 +294,11 @@ interface ApplyChangesetOutcome {
   lastCommitSha: string;
 }
 
+/**
+ * Apply every file change + the parent kustomization mutation as ONE atomic
+ * commit via the Git Data API (blob → tree → commit → updateRef). Both PR
+ * and direct modes produce a single, clean commit — no squash-merge needed.
+ */
 async function applyChangeset(
   octokit: Octokit,
   cfg: RepoConfig,
@@ -352,50 +310,123 @@ async function applyChangeset(
     await ensureBranch(octokit, cfg, branch);
   }
 
-  let lastCommitSha = '';
+  // 1. Get the branch's HEAD commit + tree.
+  let baseSha: string;
+  let baseTreeSha: string;
+  try {
+    const { data: ref } = await octokit.git.getRef({
+      owner: cfg.owner,
+      repo: cfg.repo,
+      ref: `heads/${branch}`,
+    });
+    baseSha = ref.object.sha;
+    const { data: baseCommit } = await octokit.git.getCommit({
+      owner: cfg.owner,
+      repo: cfg.repo,
+      commit_sha: baseSha,
+    });
+    baseTreeSha = baseCommit.tree.sha;
+  } catch (err) {
+    throw wrapError(`resolve branch '${branch}'`, err);
+  }
+
+  // 2. Build the list of tree changes. For each file: create a blob and add
+  //    the path; for deletions: include the path with sha:null (only if the
+  //    file actually exists on the branch — otherwise it errors).
+  type TreeItem = {
+    path: string;
+    mode: '100644';
+    type: 'blob';
+    sha: string | null;
+  };
+  const items: TreeItem[] = [];
 
   for (const file of args.files) {
     const existing = await readFileAtRef(octokit, cfg, file.path, branch);
-
     if (file.content === null) {
-      if (existing === null) continue;
-      lastCommitSha = await deleteFile(octokit, cfg, {
-        path: file.path,
-        message: args.commitMessage,
-        branch,
-        sha: existing.sha,
-      });
+      if (existing === null) continue; // already absent — idempotent
+      items.push({ path: file.path, mode: '100644', type: 'blob', sha: null });
       continue;
     }
-
-    if (existing && existing.content === file.content) continue;
-
-    lastCommitSha = await writeFile(octokit, cfg, {
-      path: file.path,
-      content: file.content,
-      message: args.commitMessage,
-      branch,
-      expectedSha: existing?.sha,
-    });
+    if (existing && existing.content === file.content) continue; // no-op
+    let blobSha: string;
+    try {
+      const { data: blob } = await octokit.git.createBlob({
+        owner: cfg.owner,
+        repo: cfg.repo,
+        content: Buffer.from(file.content, 'utf8').toString('base64'),
+        encoding: 'base64',
+      });
+      blobSha = blob.sha;
+    } catch (err) {
+      throw wrapError(`create blob for '${file.path}'`, err);
+    }
+    items.push({ path: file.path, mode: '100644', type: 'blob', sha: blobSha });
   }
 
+  // 3. Mutate the parent kustomization (if it exists and the mutation
+  //    actually changes something). Same tree, same commit.
   const parent = await readFileAtRef(octokit, cfg, args.parent.path, branch);
-  if (parent === null) {
-    // 'create': caller misconfiguration. 'delete': parent already gone.
-    return { branch, lastCommitSha };
-  }
-  const updatedParent = args.parent.mutate(parent.content);
-  if (updatedParent !== parent.content) {
-    lastCommitSha = await writeFile(octokit, cfg, {
-      path: args.parent.path,
-      content: updatedParent,
-      message: args.commitMessage,
-      branch,
-      expectedSha: parent.sha,
-    });
+  if (parent !== null) {
+    const updated = args.parent.mutate(parent.content);
+    if (updated !== parent.content) {
+      try {
+        const { data: blob } = await octokit.git.createBlob({
+          owner: cfg.owner,
+          repo: cfg.repo,
+          content: Buffer.from(updated, 'utf8').toString('base64'),
+          encoding: 'base64',
+        });
+        items.push({
+          path: args.parent.path,
+          mode: '100644',
+          type: 'blob',
+          sha: blob.sha,
+        });
+      } catch (err) {
+        throw wrapError(`create blob for '${args.parent.path}'`, err);
+      }
+    }
   }
 
-  return { branch, lastCommitSha };
+  if (items.length === 0) {
+    // Nothing to commit — branch already in the desired state.
+    return { branch, lastCommitSha: baseSha };
+  }
+
+  // 4. Build the new tree, the commit, and update the ref atomically.
+  let newCommitSha: string;
+  try {
+    const { data: newTree } = await octokit.git.createTree({
+      owner: cfg.owner,
+      repo: cfg.repo,
+      base_tree: baseTreeSha,
+      tree: items,
+    });
+    const { data: newCommit } = await octokit.git.createCommit({
+      owner: cfg.owner,
+      repo: cfg.repo,
+      message: args.commitMessage,
+      tree: newTree.sha,
+      parents: [baseSha],
+    });
+    newCommitSha = newCommit.sha;
+  } catch (err) {
+    throw wrapError('build tree/commit', err);
+  }
+
+  try {
+    await octokit.git.updateRef({
+      owner: cfg.owner,
+      repo: cfg.repo,
+      ref: `heads/${branch}`,
+      sha: newCommitSha,
+    });
+  } catch (err) {
+    throw wrapError(`update ref '${branch}'`, err);
+  }
+
+  return { branch, lastCommitSha: newCommitSha };
 }
 
 async function openPullRequest(

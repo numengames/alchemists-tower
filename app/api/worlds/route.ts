@@ -19,14 +19,22 @@ import {
   applyDeleteWorldChangeset,
   type ChangesetResult,
 } from '@/lib/github';
-import { createWorldSchema, WorldDbPermissionError } from '@/lib/world-db';
+import {
+  createWorldSchema,
+  dropWorldSchema,
+  WorldDbPermissionError,
+} from '@/lib/world-db';
 import {
   deleteWorldCname,
   GoDaddyApiError,
   GoDaddyAuthError,
   upsertWorldCname,
 } from '@/lib/godaddy';
-import { copyDefaultAssets, S3TemplateMissingError } from '@/lib/s3-assets';
+import {
+  copyDefaultAssets,
+  deleteWorldAssets,
+  S3TemplateMissingError,
+} from '@/lib/s3-assets';
 import {
   deriveAssetsBaseUrl,
   deriveAwsSecretName,
@@ -47,9 +55,9 @@ import {
 import { Environment, WorldStatus } from '@/generated/prisma/enums';
 
 /**
- * Build the per-world `ASSETS_S3_URI` value. The hyperfy2 runtime parses it
- * as `s3://USER:PASS@HOST/PATH` so it can authenticate to S3 directly. When
- * the auth env vars are missing, falls back to a plain `s3://bucket/path`.
+ * Build the per-world `ASSETS_S3_URI`. The runtime parses
+ * `s3://USER:PASS@HOST/PATH` without URL-decoding, so credentials must be
+ * embedded raw (the same way every existing world has them).
  */
 function buildAssetsS3Uri(args: {
   org: string;
@@ -63,11 +71,8 @@ function buildAssetsS3Uri(args: {
   const path = `/${args.rootPrefix}/${args.org}/${args.world}/${args.envSegment}/assets`;
 
   if (host && accessKeyId && secretAccessKey) {
-    const auth = `${encodeURIComponent(accessKeyId)}:${encodeURIComponent(secretAccessKey)}@`;
-    return `s3://${auth}${host}${path}`;
+    return `s3://${accessKeyId}:${secretAccessKey}@${host}${path}`;
   }
-  // Fallback: plain s3:// URI (no auth). The pod will need IRSA or another
-  // credential source to access the bucket.
   const bucket = process.env.ASSETS_BUCKET ?? '';
   return `s3://${bucket}${path}`;
 }
@@ -78,9 +83,6 @@ export async function GET(request: Request) {
       const [k8sWorlds, dbWorlds] = await Promise.all([
         listWorlds(),
         prisma.world.findMany({
-          where: {
-            status: { in: [WorldStatus.PROVISIONING, WorldStatus.FAILED] },
-          },
           select: {
             organization: true,
             slug: true,
@@ -97,15 +99,28 @@ export async function GET(request: Request) {
         }),
       ]);
 
-      // K8s worlds are the live source of truth; index them so we don't
-      // double-list any DB row that already has a corresponding HelmRelease.
-      const liveKey = (org: string, slug: string, env: string) => `${org}/${slug}/${env}`;
+      // Index every DB row by org/slug/env. A k8s world with a matching DB
+      // row is "managed" by the backoffice (safe to delete via the UI). A k8s
+      // world without one is legacy (created manually pre-backoffice).
+      const dbKey = (org: string, slug: string, env: string) =>
+        `${org}/${slug}/${env}`;
+      const dbIndex = new Map<string, (typeof dbWorlds)[number]>(
+        dbWorlds.map((d) => [
+          dbKey(d.organization, d.slug, d.environment.toLowerCase()),
+          d,
+        ]),
+      );
+
       const liveSet = new Set(
-        k8sWorlds.map((w) => liveKey(w.organization, w.worldName, w.environment)),
+        k8sWorlds.map((w) => dbKey(w.organization, w.worldName, w.environment)),
       );
 
       const dbOnly = dbWorlds
-        .filter((d) => !liveSet.has(liveKey(d.organization, d.slug, d.environment.toLowerCase())))
+        .filter(
+          (d) =>
+            (d.status === WorldStatus.PROVISIONING || d.status === WorldStatus.FAILED) &&
+            !liveSet.has(dbKey(d.organization, d.slug, d.environment.toLowerCase())),
+        )
         .map((d) => ({
           helmReleaseName: d.helmrelease_name,
           worldName: d.slug,
@@ -116,14 +131,52 @@ export async function GET(request: Request) {
           status: d.status === WorldStatus.FAILED ? ('FAILED' as const) : ('PROVISIONING' as const),
           statusReason: d.failure_reason ?? undefined,
           source: 'db' as const,
+          managed: true,
           failureStep: d.failure_step,
           failureReason: d.failure_reason,
           prUrl: d.github_pr_url,
           createdAt: d.created_at.toISOString(),
         }));
 
-      const annotated = k8sWorlds.map((w) => ({ ...w, source: 'k8s' as const }));
+      const annotated = k8sWorlds.map((w) => ({
+        ...w,
+        source: 'k8s' as const,
+        managed: dbIndex.has(dbKey(w.organization, w.worldName, w.environment)),
+      }));
       const worlds = [...dbOnly, ...annotated];
+
+      // Fire-and-forget: any k8s world whose DB row is still PROVISIONING
+      // gets transitioned to ACTIVE + deployed_at = now. Idempotent (filter
+      // narrows to the rows that need it). Errors are logged, never block
+      // the GET response.
+      const transitionsNeeded = k8sWorlds
+        .map((w) => {
+          const row = dbIndex.get(dbKey(w.organization, w.worldName, w.environment));
+          if (!row || row.status !== WorldStatus.PROVISIONING) return null;
+          return { org: w.organization, slug: w.worldName, env: row.environment };
+        })
+        .filter((x): x is { org: string; slug: string; env: Environment } => x !== null);
+
+      if (transitionsNeeded.length > 0) {
+        const now = new Date();
+        Promise.all(
+          transitionsNeeded.map((t) =>
+            prisma.world.update({
+              where: {
+                organization_slug_environment: {
+                  organization: t.org,
+                  slug: t.slug,
+                  environment: t.env,
+                },
+              },
+              data: { status: WorldStatus.ACTIVE, deployed_at: now },
+            }),
+          ),
+        ).catch((err) => {
+          console.error('[api/worlds GET] PROVISIONING→ACTIVE transition failed:', err);
+        });
+      }
+
       return NextResponse.json({ worlds });
     } catch (error) {
       console.error('[api/worlds] failed to list worlds:', error);
@@ -659,6 +712,27 @@ export async function DELETE(request: Request) {
       }
     }
 
+    let assetsDeletedCount = 0;
+    let assetsPrefix: string | null = null;
+    let assetsDeleted = true;
+    try {
+      const r = await deleteWorldAssets({ org, world, env });
+      assetsDeletedCount = r.deleted;
+      assetsPrefix = r.prefix;
+    } catch (error) {
+      console.error('[api/worlds DELETE] S3 assets delete failed:', error);
+      assetsDeleted = false;
+    }
+
+    let schemaDropped = true;
+    const dbSchema = deriveDbSchema(org, world, env);
+    try {
+      await dropWorldSchema(dbSchema);
+    } catch (error) {
+      console.error('[api/worlds DELETE] schema drop failed:', error);
+      schemaDropped = false;
+    }
+
     if (dbWorld) {
       await prisma.world.delete({ where: { id: dbWorld.id } }).catch((err) => {
         console.error('[api/worlds DELETE] DB delete failed:', err);
@@ -684,6 +758,11 @@ export async function DELETE(request: Request) {
           dns_skipped: dnsSkipped,
           dns_deleted: dnsDeleted,
           dns_record: dnsRecord,
+          assets_deleted: assetsDeleted,
+          assets_deleted_count: assetsDeletedCount,
+          assets_prefix: assetsPrefix,
+          schema_dropped: schemaDropped,
+          db_schema: dbSchema,
           had_db_row: dbWorld !== null,
         },
       },
@@ -701,6 +780,11 @@ export async function DELETE(request: Request) {
           dns_skipped: dnsSkipped,
           dns_deleted: dnsDeleted,
           dns_record: dnsRecord,
+          assets_deleted: assetsDeleted,
+          assets_deleted_count: assetsDeletedCount,
+          assets_prefix: assetsPrefix,
+          schema_dropped: schemaDropped,
+          db_schema: dbSchema,
           had_db_row: dbWorld !== null,
         },
       },

@@ -19,7 +19,12 @@ WORKDIR /app
 RUN corepack enable
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Prisma client must exist before `next build` (lib/prisma.ts imports it).
+# Placeholder DB URLs only for the build step. `prisma.config.ts` resolves
+# `env('DATABASE_URL')` eagerly at config-load time, so we satisfy it with a
+# dummy string just to render the schema. At runtime these are overridden by
+# the k8s Secret pulled via External Secret (envFrom on the Deployment).
+ENV DATABASE_URL="postgresql://placeholder:placeholder@placeholder:5432/placeholder" \
+    SHADOW_DATABASE_URL="postgresql://placeholder:placeholder@placeholder:5432/placeholder_shadow"
 RUN npx prisma generate
 RUN pnpm build
 

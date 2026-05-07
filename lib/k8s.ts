@@ -46,6 +46,8 @@ export interface World {
   createdAt?: string;
   /** Set when this row is DB-only (PROVISIONING / FAILED) — not in cluster yet. */
   source?: 'k8s' | 'db';
+  /** True if the world was created by the backoffice (has a DB row). False = legacy. */
+  managed?: boolean;
   failureStep?: string | null;
   failureReason?: string | null;
   prUrl?: string | null;
