@@ -1,39 +1,22 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { signOut, useSession } from 'next-auth/react';
+import { Activity, Boxes, Clock } from 'lucide-react';
+
 import { Sidebar } from '@/components/sidebar';
 import { TopBar } from '@/components/top-bar';
 import { LogoutModal } from '@/components/logout-modal';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-} from 'recharts';
 import { Card } from '@/components/ui/card';
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { signOut, useSession } from 'next-auth/react';
-
-const analyticsData = [
-  { month: 'Jan', worlds: 24, active: 18, paused: 6 },
-  { month: 'Feb', worlds: 32, active: 24, paused: 8 },
-  { month: 'Mar', worlds: 28, active: 21, paused: 7 },
-  { month: 'Apr', worlds: 45, active: 35, paused: 10 },
-  { month: 'May', worlds: 52, active: 40, paused: 12 },
-  { month: 'Jun', worlds: 61, active: 48, paused: 13 },
-];
+import { useWorlds } from '@/lib/use-worlds';
 
 export default function AnalyticsPage() {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const { status } = useSession();
   const router = useRouter();
+  const { worlds, loading, error: loadError, cachedAt } = useWorlds();
 
   useEffect(() => {
     setIsMounted(true);
@@ -44,13 +27,14 @@ export default function AnalyticsPage() {
 
   const handleLogoutConfirm = async () => {
     setIsLogoutModalOpen(false);
-    localStorage.removeItem('auth_token');
     await signOut({ callbackUrl: '/login' });
   };
 
-  if (!isMounted) {
-    return null;
-  }
+  if (!isMounted) return null;
+
+  const total = worlds?.length ?? null;
+  const active = worlds?.filter((w) => w.status === 'RUNNING').length ?? null;
+  const idle = worlds?.filter((w) => w.status === 'IDLE').length ?? null;
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden flex-col md:flex-row">
@@ -59,86 +43,57 @@ export default function AnalyticsPage() {
         <TopBar onSignOut={() => setIsLogoutModalOpen(true)} />
         <div className="flex-1 overflow-auto">
           <div className="p-6 md:px-20 space-y-8">
-            {/* Page Header */}
             <div>
               <h1 className="text-3xl md:text-4xl font-serif font-bold text-foreground mb-2">
                 Analytics
               </h1>
-              <p className="text-foreground/60">Monitor world performance and engagement metrics</p>
+              <p className="text-foreground/60">
+                Live metrics derived from the cluster
+                {cachedAt && (
+                  <span className="ml-2 text-xs text-foreground/40">
+                    (cached {formatCacheAge(cachedAt)})
+                  </span>
+                )}
+              </p>
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card className="p-6 bg-card border border-border rounded-xl">
-                <p className="text-sm text-foreground/60 mb-2">Total Worlds</p>
-                <p className="text-3xl font-bold text-foreground">341</p>
-                <p className="text-xs text-green-500/60 mt-2">+12% from last month</p>
+            {loadError && (
+              <Card className="p-4 border border-red-500/30 bg-red-500/5 text-sm text-red-300">
+                Failed to load worlds: {loadError}
               </Card>
-              <Card className="p-6 bg-card border border-border rounded-xl">
-                <p className="text-sm text-foreground/60 mb-2">Active Now</p>
-                <p className="text-3xl font-bold text-primary">289</p>
-                <p className="text-xs text-foreground/60 mt-2">84% utilization</p>
-              </Card>
-              <Card className="p-6 bg-card border border-border rounded-xl">
-                <p className="text-sm text-foreground/60 mb-2">Total Users</p>
-                <p className="text-3xl font-bold text-foreground">8.3K</p>
-                <p className="text-xs text-green-500/60 mt-2">+5% from last month</p>
-              </Card>
-              <Card className="p-6 bg-card border border-border rounded-xl">
-                <p className="text-sm text-foreground/60 mb-2">Avg Response Time</p>
-                <p className="text-3xl font-bold text-foreground">124ms</p>
-                <p className="text-xs text-green-500/60 mt-2">-8% improvement</p>
-              </Card>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <MetricCard
+                icon={Boxes}
+                label="Total Worlds"
+                value={total}
+                loading={loading}
+                hint="HelmReleases across every org namespace"
+              />
+              <MetricCard
+                icon={Activity}
+                label="Active Now"
+                value={active}
+                loading={loading}
+                hint="Pods serving traffic (Knative Ready, replicas ≥ 1)"
+                highlight
+              />
+              <MetricCard
+                icon={Clock}
+                label="Idle (scaled to zero)"
+                value={idle}
+                loading={loading}
+                hint="Provisioned but currently scaled to zero"
+              />
             </div>
 
-            {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className="p-6 bg-card border border-border rounded-xl">
-                <h2 className="text-lg font-serif font-bold text-foreground mb-4">Worlds Growth</h2>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={analyticsData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="month" stroke="hsl(var(--foreground))" />
-                    <YAxis stroke="hsl(var(--foreground))" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                      }}
-                    />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="worlds"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth={2}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </Card>
-
-              <Card className="p-6 bg-card border border-border rounded-xl">
-                <h2 className="text-lg font-serif font-bold text-foreground mb-4">
-                  Status Breakdown
-                </h2>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={analyticsData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="month" stroke="hsl(var(--foreground))" />
-                    <YAxis stroke="hsl(var(--foreground))" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                      }}
-                    />
-                    <Legend />
-                    <Bar dataKey="active" fill="hsl(var(--primary))" />
-                    <Bar dataKey="paused" fill="hsl(var(--muted))" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </Card>
-            </div>
+            <Card className="p-8 border border-dashed border-border bg-card/40 text-center">
+              <p className="text-sm text-foreground/70 font-medium">More metrics coming soon</p>
+              <p className="text-xs text-foreground/50 mt-1">
+                Cost (MTD + forecast), per-world activity, deploy frequency, error rate.
+              </p>
+            </Card>
           </div>
         </div>
         <LogoutModal
@@ -149,4 +104,54 @@ export default function AnalyticsPage() {
       </div>
     </div>
   );
+}
+
+function MetricCard({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  loading = false,
+  highlight = false,
+}: {
+  icon: typeof Activity;
+  label: string;
+  value: number | null;
+  hint: string;
+  loading?: boolean;
+  highlight?: boolean;
+}) {
+  const showSkeleton = loading && value === null;
+  return (
+    <Card className="p-6 bg-card border border-border rounded-xl">
+      <div className="flex items-start justify-between mb-2">
+        <p className="text-sm text-foreground/60">{label}</p>
+        <Icon
+          className={`w-4 h-4 ${highlight ? 'text-primary' : 'text-foreground/40'}`}
+          strokeWidth={1.75}
+        />
+      </div>
+      {showSkeleton ? (
+        <div className="h-9 w-16 bg-sidebar-accent/40 rounded animate-pulse" />
+      ) : (
+        <p
+          className={`text-3xl font-bold ${
+            highlight ? 'text-primary' : 'text-foreground'
+          }`}
+        >
+          {value ?? '—'}
+        </p>
+      )}
+      <p className="text-xs text-foreground/50 mt-2">{hint}</p>
+    </Card>
+  );
+}
+
+function formatCacheAge(ts: number): string {
+  const diffSec = Math.round((Date.now() - ts) / 1000);
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.round(diffMin / 60);
+  return `${diffHr}h ago`;
 }

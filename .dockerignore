@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.env*
+!.env.example
+coverage
+*.log
+.DS_Store
+deploy
+CLAUDE.md
+.claude
+.agents
+skills-lock.json
+README.md
+*.md
+!CHANGELOG.md

@@ -22,9 +22,15 @@ enum UserStatus {
 }
 
 enum Environment {
-  DEVELOPMENT
-  STAGING
-  PRODUCTION
+  PRE
+  PRO
+}
+
+enum WorldStatus {
+  PROVISIONING
+  ACTIVE
+  DELETING
+  FAILED
 }
 
 enum AuditAction {
@@ -89,29 +95,37 @@ model User {
 // ============================================
 model World {
   id                String       @id @default(cuid())
-  name              String       @unique
-  slug              String       @unique
+  name              String
+  slug              String
+  organization      String
   environment       Environment
-  version           String
-  
-  k8s_namespace     String?
-  k8s_cluster_name  String?
-  rds_host          String?
-  rds_schema        String?
-  s3_bucket_assets  String?
-  git_repo_url      String?
-  
+  status            WorldStatus  @default(PROVISIONING)
+
+  helmrelease_name  String
+  k8s_namespace     String
+  hostname          String
+
+  template_version  String?
+  github_pr_url     String?
+  github_pr_number  Int?
+
+  failure_step      String?
+  failure_reason    String?
+
   description       String       @default("")
-  
-  owner_id          String
-  owner             User         @relation(fields: [owner_id], references: [id])
-  
+
+  owner_id          String?
+  owner             User?        @relation(fields: [owner_id], references: [id], onDelete: SetNull)
+
   created_at        DateTime     @default(now())
   updated_at        DateTime     @updatedAt
   deployed_at       DateTime?
-  
+
   audit_logs        AuditLog[]
 
+  @@unique([organization, slug, environment])
+  @@index([organization, environment])
+  @@index([status])
   @@map("worlds")
 }
 

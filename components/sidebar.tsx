@@ -1,20 +1,26 @@
 'use client';
 
-import { Home, Settings, BarChart3, Bell, HelpCircle } from 'lucide-react';
+import { Home, Settings, BarChart3, Bell, HelpCircle, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { KhepriLogo } from '@/components/khepri-logo';
 
-const navItems = [
+const baseNavItems = [
   { icon: Home, label: 'Dashboard', href: '/dashboard' },
   { icon: BarChart3, label: 'Analytics', href: '/analytics' },
   { icon: Bell, label: 'Activity', href: '/activity' },
   { icon: Settings, label: 'Settings', href: '/settings' },
 ];
 
+const adminOnlyItems = [{ icon: Users, label: 'Users', href: '/users' }];
+
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === 'ADMIN';
+  const navItems = isAdmin ? [...baseNavItems, ...adminOnlyItems] : baseNavItems;
 
   return (
     <aside className="w-64 bg-sidebar border-r border-sidebar-border p-6 flex flex-col h-screen overflow-y-auto">

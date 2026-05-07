@@ -43,3 +43,13 @@ next-env.d.ts
 
 # prisma
 /generated/prisma
+
+# Claude Code / agent harness — session-local context, not for the public repo
+/CLAUDE.md
+/.claude/
+/.agents/
+/skills-lock.json
+
+# Deployment manifests (k8s YAMLs + IAM policies) — contain AWS account ID and
+# cluster OIDC. Kept local; they live in the private GitOps repo numinia-k8s.
+/deploy/
