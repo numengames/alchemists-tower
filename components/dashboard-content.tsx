@@ -1,19 +1,12 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import {
-  Plus,
-  Search,
-  Activity,
-  Moon,
-  AlertCircle,
-  Boxes,
-  RefreshCw,
-} from 'lucide-react';
+import { Plus, Search, Activity, Moon, AlertCircle, Boxes, RefreshCw } from 'lucide-react';
 import { WorldCard } from '@/components/world-card';
 import { StatsCard } from '@/components/stats-card';
 import { DeleteWorldModal } from '@/components/delete-world-modal';
 import { AdminCodeModal } from '@/components/admin-code-modal';
+import { BackupWorldModal } from '@/components/backup-world-modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { World, WorldStatus } from '@/lib/k8s';
@@ -60,6 +53,7 @@ export function DashboardContent({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [worldToDelete, setWorldToDelete] = useState<World | null>(null);
   const [worldForAdminCode, setWorldForAdminCode] = useState<World | null>(null);
+  const [worldToBackup, setWorldToBackup] = useState<World | null>(null);
   const [expandedOrgs, setExpandedOrgs] = useState<Set<string>>(new Set());
 
   const WORLDS_PER_ORG_INITIAL = 6;
@@ -254,6 +248,12 @@ export function DashboardContent({
           onClose={() => setWorldForAdminCode(null)}
         />
 
+        <BackupWorldModal
+          isOpen={worldToBackup !== null}
+          world={worldToBackup}
+          onClose={() => setWorldToBackup(null)}
+        />
+
         {!loading && !error && groupedByOrg.length > 0 && (
           <div className="space-y-8">
             {groupedByOrg.map(([org, list]) => {
@@ -280,6 +280,7 @@ export function DashboardContent({
                         isAdmin={isAdmin}
                         onDelete={(world) => setWorldToDelete(world)}
                         onShowAdminCode={(world) => setWorldForAdminCode(world)}
+                        onBackup={(world) => setWorldToBackup(world)}
                       />
                     ))}
                   </div>

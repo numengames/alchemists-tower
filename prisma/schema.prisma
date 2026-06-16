@@ -52,6 +52,13 @@ enum LogStatus {
   FAILURE
 }
 
+enum BackupStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
 // ============================================
 // USERS
 // ============================================
@@ -127,6 +134,39 @@ model World {
   @@index([organization, environment])
   @@index([status])
   @@map("worlds")
+}
+
+// ============================================
+// BACKUP JOBS
+// ============================================
+model BackupJob {
+  id            String       @id @default(cuid())
+
+  organization  String
+  world         String
+  environment   Environment
+
+  status        BackupStatus @default(QUEUED)
+
+  // Populated on success.
+  object_key    String?
+  size_bytes    BigInt?
+  asset_files   Int?
+  db_rows       Json?
+
+  // Populated on failure.
+  error_step    String?
+  error_reason  String?
+
+  requested_by  String?
+
+  created_at    DateTime     @default(now())
+  started_at    DateTime?
+  completed_at  DateTime?
+
+  @@index([organization, world, environment])
+  @@index([status])
+  @@map("backup_jobs")
 }
 
 // ============================================

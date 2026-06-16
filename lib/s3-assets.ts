@@ -11,9 +11,11 @@
 import {
   CopyObjectCommand,
   DeleteObjectsCommand,
+  GetObjectCommand,
   ListObjectsV2Command,
   S3Client,
 } from '@aws-sdk/client-s3';
+import type { Readable } from 'node:stream';
 
 function getBucket(): string {
   const v = process.env.ASSETS_BUCKET ?? '';
@@ -182,4 +184,48 @@ export async function deleteWorldAssets(args: {
   }
 
   return { deleted, envSegment, prefix };
+}
+
+/** The S3 prefix that holds a world's assets, e.g. `hyperfy-spaces/org/world/latest/`. */
+export function deriveWorldAssetsPrefix(args: {
+  org: string;
+  world: string;
+  env: 'pre' | 'pro';
+}): string {
+  const { org, world, env } = args;
+  return `${ROOT_PREFIX}/${org}/${world}/${envToAssetsSegment(env)}/`;
+}
+
+export interface WorldAssetKeys {
+  /** The shared prefix every key starts with (for relative-path math). */
+  prefix: string;
+  /** Every object key under the world prefix (excludes folder placeholders). */
+  keys: string[];
+}
+
+/** List every asset object key for a world. Empty `keys` is a valid result. */
+export async function listWorldAssetKeys(args: {
+  org: string;
+  world: string;
+  env: 'pre' | 'pro';
+}): Promise<WorldAssetKeys> {
+  const prefix = deriveWorldAssetsPrefix(args);
+  const keys = await listAllKeys(prefix);
+  return { prefix, keys };
+}
+
+export interface AssetObject {
+  body: Readable;
+  contentLength: number;
+}
+
+/** Open a single S3 object for streaming download. */
+export async function getAssetObjectStream(key: string): Promise<AssetObject> {
+  const out = await getClient().send(
+    new GetObjectCommand({ Bucket: getBucket(), Key: key }),
+  );
+  if (!out.Body) {
+    throw new Error(`S3 object has no body: ${key}`);
+  }
+  return { body: out.Body as Readable, contentLength: out.ContentLength ?? 0 };
 }
