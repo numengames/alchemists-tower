@@ -1,6 +1,19 @@
 'use client';
 
-import { ExternalLink, KeyRound, Trash2, Activity, Moon, AlertTriangle, AlertCircle, RefreshCw, HelpCircle, Hourglass, XCircle } from 'lucide-react';
+import {
+  ExternalLink,
+  KeyRound,
+  Trash2,
+  Archive,
+  Activity,
+  Moon,
+  AlertTriangle,
+  AlertCircle,
+  RefreshCw,
+  HelpCircle,
+  Hourglass,
+  XCircle,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { World, WorldStatus } from '@/lib/k8s';
 import { cn } from '@/lib/utils';
@@ -10,6 +23,7 @@ interface WorldCardProps {
   isAdmin: boolean;
   onDelete?: (world: World) => void;
   onShowAdminCode?: (world: World) => void;
+  onBackup?: (world: World) => void;
 }
 
 const STATUS_META: Record<
@@ -68,7 +82,7 @@ const STATUS_META: Record<
   },
 };
 
-export function WorldCard({ world, isAdmin, onDelete, onShowAdminCode }: WorldCardProps) {
+export function WorldCard({ world, isAdmin, onDelete, onShowAdminCode, onBackup }: WorldCardProps) {
   const meta = STATUS_META[world.status];
   const StatusIcon = meta.icon;
 
@@ -105,18 +119,13 @@ export function WorldCard({ world, isAdmin, onDelete, onShowAdminCode }: WorldCa
           )}
           title={world.statusReason}
         >
-          <StatusIcon
-            className={cn('w-3 h-3', meta.pulse && 'animate-spin')}
-            strokeWidth={2}
-          />
+          <StatusIcon className={cn('w-3 h-3', meta.pulse && 'animate-spin')} strokeWidth={2} />
           {meta.label}
         </span>
       </div>
 
       <div className="flex items-center gap-3 text-xs text-foreground/55 mb-4 flex-wrap">
-        {world.chartVersion && (
-          <span className="font-mono">v{world.chartVersion}</span>
-        )}
+        {world.chartVersion && <span className="font-mono">v{world.chartVersion}</span>}
         {world.url && (
           <span className="truncate" title={world.url}>
             {world.url.replace(/^https?:\/\//, '')}
@@ -138,7 +147,8 @@ export function WorldCard({ world, isAdmin, onDelete, onShowAdminCode }: WorldCa
 
       {world.status === 'FAILED' && world.failureStep && (
         <div className="text-xs mb-3 px-2.5 py-1.5 rounded-md border border-red-500/30 bg-red-500/5 text-red-300/90">
-          <span className="font-medium">Failed at:</span> <span className="font-mono">{world.failureStep}</span>
+          <span className="font-medium">Failed at:</span>{' '}
+          <span className="font-mono">{world.failureStep}</span>
           {world.failureReason && (
             <p className="text-foreground/50 mt-1 break-words">{world.failureReason}</p>
           )}
@@ -158,7 +168,11 @@ export function WorldCard({ world, isAdmin, onDelete, onShowAdminCode }: WorldCa
           </a>
         ) : (
           <span className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-1.5 text-xs rounded-md border border-sidebar-border/50 text-foreground/40">
-            {world.status === 'PROVISIONING' ? 'Provisioning…' : world.status === 'FAILED' ? 'Not deployed' : 'No URL'}
+            {world.status === 'PROVISIONING'
+              ? 'Provisioning…'
+              : world.status === 'FAILED'
+                ? 'Not deployed'
+                : 'No URL'}
           </span>
         )}
 
@@ -173,11 +187,24 @@ export function WorldCard({ world, isAdmin, onDelete, onShowAdminCode }: WorldCa
           </button>
         )}
 
+        {isAdmin && onBackup && world.source !== 'db' && (
+          <button
+            onClick={() => onBackup(world)}
+            className="inline-flex items-center justify-center px-2.5 py-1.5 rounded-md text-foreground/60 hover:text-sky-400 hover:bg-sky-500/10 transition-colors"
+            aria-label={`Back up ${world.worldName}`}
+            title="Download a backup (run it anywhere)"
+          >
+            <Archive className="w-3.5 h-3.5" strokeWidth={1.75} />
+          </button>
+        )}
+
         {isAdmin && onDelete && world.managed !== false && (
           <button
             onClick={() => onDelete(world)}
             className="inline-flex items-center justify-center px-2.5 py-1.5 rounded-md text-foreground/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-            aria-label={world.status === 'FAILED' ? `Purge ${world.worldName}` : `Delete ${world.worldName}`}
+            aria-label={
+              world.status === 'FAILED' ? `Purge ${world.worldName}` : `Delete ${world.worldName}`
+            }
             title={world.status === 'FAILED' ? 'Purge failed world' : 'Delete world'}
           >
             <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
