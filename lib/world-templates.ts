@@ -97,7 +97,8 @@ export function getSupportedOrgs(): string[] {
   return Object.keys(loadOrgConfig());
 }
 
-const WORLD_NAME_RE = /^[a-z][a-z0-9-]{1,28}[a-z0-9]$/;
+// Min 2 chars (e.g. `wp`): first letter + last alphanumeric, optional middle.
+const WORLD_NAME_RE = /^[a-z][a-z0-9-]{0,28}[a-z0-9]$/;
 
 export function isValidWorldName(name: string): boolean {
   return WORLD_NAME_RE.test(name);

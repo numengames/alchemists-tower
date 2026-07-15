@@ -35,6 +35,7 @@ describe('isValidWorldName', () => {
     expect(isValidWorldName('city-of-mesa')).toBe(true);
     expect(isValidWorldName('genesis')).toBe(true);
     expect(isValidWorldName('a1b')).toBe(true);
+    expect(isValidWorldName('wp')).toBe(true); // 2 chars (real world: r3s3t/wp)
   });
 
   it('rejects names that violate the contract', () => {
