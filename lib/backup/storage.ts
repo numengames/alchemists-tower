@@ -6,7 +6,7 @@
  * Bucket/prefix are configurable; defaults reuse the assets bucket under a
  * `backups/` prefix. A lifecycle rule on that prefix (Phase 5) expires old zips.
  */
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PassThrough, type Readable } from 'node:stream';
@@ -48,6 +48,54 @@ export function backupObjectKey(
 /** The filename the operator sees when downloading. */
 export function backupDownloadFilename(org: string, world: string, env: 'pre' | 'pro'): string {
   return `mundo-${org}-${world}-${env}.zip`;
+}
+
+/**
+ * S3 key for the combined "all worlds" archive. Lives under the same `backups/`
+ * prefix (so the lifecycle rule expires it like any other) but in an `_all/`
+ * sub-prefix that never collides with a real org name (orgs can't contain `_`).
+ * Keyed by the bulk job id so retries are idempotent.
+ */
+export function bulkBackupObjectKey(bulkJobId: string): string {
+  return `${PREFIX}/_all/${bulkJobId}.zip`;
+}
+
+/** The filename the operator sees when downloading the combined archive. */
+export function bulkBackupDownloadFilename(): string {
+  return 'todos-los-mundos.zip';
+}
+
+export interface BackupArchiveObject {
+  body: Readable;
+  contentLength: number;
+}
+
+/**
+ * Open a read stream over an existing backup archive at `key`. Used by the bulk
+ * export to pipe each per-world zip into the combined archive without touching
+ * disk. Throws if the object is missing — callers that want a soft "does it
+ * exist" check should use {@link backupArchiveExists} first.
+ */
+export async function getBackupArchiveStream(key: string): Promise<BackupArchiveObject> {
+  const out = await getClient().send(new GetObjectCommand({ Bucket: getBucket(), Key: key }));
+  return { body: out.Body as Readable, contentLength: out.ContentLength ?? 0 };
+}
+
+/**
+ * Whether a backup archive still exists in S3. A COMPLETED BackupJob row can
+ * outlive its archive (the `backups/` lifecycle rule deletes zips after
+ * {@link BACKUP_LIFECYCLE_DAYS}), so the bulk export HEAD-checks before reusing
+ * one — a stale row must trigger a fresh backup, not a broken zip entry.
+ */
+export async function backupArchiveExists(key: string): Promise<boolean> {
+  try {
+    await getClient().send(new HeadObjectCommand({ Bucket: getBucket(), Key: key }));
+    return true;
+  } catch (err) {
+    const name = (err as { name?: string })?.name ?? '';
+    if (['NoSuchKey', 'NotFound', 'AccessDenied', 'Forbidden'].includes(name)) return false;
+    throw err;
+  }
 }
 
 export interface BackupUpload {
