@@ -1,12 +1,22 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { Plus, Search, Activity, Moon, AlertCircle, Boxes, RefreshCw } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  Activity,
+  Moon,
+  AlertCircle,
+  Boxes,
+  RefreshCw,
+  DownloadCloud,
+} from 'lucide-react';
 import { WorldCard } from '@/components/world-card';
 import { StatsCard } from '@/components/stats-card';
 import { DeleteWorldModal } from '@/components/delete-world-modal';
 import { AdminCodeModal } from '@/components/admin-code-modal';
 import { BackupWorldModal } from '@/components/backup-world-modal';
+import { BackupAllWorldsModal } from '@/components/backup-all-worlds-modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { World, WorldStatus } from '@/lib/k8s';
@@ -54,6 +64,7 @@ export function DashboardContent({
   const [worldToDelete, setWorldToDelete] = useState<World | null>(null);
   const [worldForAdminCode, setWorldForAdminCode] = useState<World | null>(null);
   const [worldToBackup, setWorldToBackup] = useState<World | null>(null);
+  const [backupAllOpen, setBackupAllOpen] = useState(false);
   const [expandedOrgs, setExpandedOrgs] = useState<Set<string>>(new Set());
 
   const WORLDS_PER_ORG_INITIAL = 6;
@@ -133,6 +144,17 @@ export function DashboardContent({
                 strokeWidth={1.75}
               />
             </Button>
+            {isAdmin && (
+              <Button
+                variant="outline"
+                onClick={() => setBackupAllOpen(true)}
+                disabled={!worlds || worlds.length === 0}
+                className="border-sidebar-border bg-transparent"
+                title="Back up every world into a single downloadable archive"
+              >
+                <DownloadCloud className="w-4 h-4 mr-2" strokeWidth={1.75} /> Back up all
+              </Button>
+            )}
             {isAdmin && (
               <Button
                 onClick={onCreateClick}
@@ -253,6 +275,8 @@ export function DashboardContent({
           world={worldToBackup}
           onClose={() => setWorldToBackup(null)}
         />
+
+        <BackupAllWorldsModal isOpen={backupAllOpen} onClose={() => setBackupAllOpen(false)} />
 
         {!loading && !error && groupedByOrg.length > 0 && (
           <div className="space-y-8">
